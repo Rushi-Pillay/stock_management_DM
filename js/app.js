@@ -414,7 +414,152 @@ const App = (function () {
     };
 })();
 
-// Initialize app when DOM is ready
+/**
+ * Login Handler
+ * Manages GitHub token authentication flow
+ */
+const LoginHandler = (function () {
+    const loginOverlay = document.getElementById('login-overlay');
+    const loginForm = document.getElementById('login-form');
+    const tokenInput = document.getElementById('github-token');
+    const gistIdInput = document.getElementById('gist-id');
+    const appContainer = document.querySelector('.app-container');
+
+    /**
+     * Initialize login handler
+     */
+    function init() {
+        // Check if already authenticated (session still active)
+        if (Storage.isAuthenticated()) {
+            showApp();
+            return;
+        }
+
+        // Show login and bind events
+        showLogin();
+        bindLoginEvents();
+    }
+
+    /**
+     * Show login overlay
+     */
+    function showLogin() {
+        loginOverlay.classList.remove('hidden');
+        appContainer.classList.add('hidden');
+    }
+
+    /**
+     * Show main app
+     */
+    function showApp() {
+        loginOverlay.classList.add('hidden');
+        appContainer.classList.remove('hidden');
+        App.init();
+    }
+
+    /**
+     * Bind login form events
+     */
+    function bindLoginEvents() {
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await handleLogin();
+        });
+    }
+
+    /**
+     * Handle login form submission
+     */
+    async function handleLogin() {
+        const token = tokenInput.value.trim();
+        const gistId = gistIdInput.value.trim() || null;
+
+        if (!token) {
+            showLoginError('Please enter your GitHub token');
+            return;
+        }
+
+        // Show loading state
+        const submitBtn = loginForm.querySelector('.login-btn');
+        const originalContent = submitBtn.innerHTML;
+        submitBtn.classList.add('loading');
+        submitBtn.innerHTML = '<span class="btn-icon">⏳</span> Connecting...';
+
+        // Clear any previous errors
+        clearLoginError();
+
+        try {
+            const result = await Storage.authenticate(token, gistId);
+
+            if (result.success) {
+                // Store Gist ID for display
+                if (!gistId) {
+                    // New Gist created - show the ID to user
+                    showLoginSuccess(`Connected! Your Gist ID: ${result.gistId}`);
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                }
+
+                showApp();
+            }
+        } catch (error) {
+            console.error('Login failed:', error);
+            showLoginError(error.message || 'Authentication failed. Please check your token.');
+
+            // Reset button
+            submitBtn.classList.remove('loading');
+            submitBtn.innerHTML = originalContent;
+        }
+    }
+
+    /**
+     * Show login error message
+     * @param {string} message
+     */
+    function showLoginError(message) {
+        clearLoginError();
+
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'login-error';
+        errorDiv.id = 'login-error';
+        errorDiv.textContent = message;
+
+        loginForm.insertBefore(errorDiv, loginForm.firstChild);
+    }
+
+    /**
+     * Show login success message
+     * @param {string} message
+     */
+    function showLoginSuccess(message) {
+        clearLoginError();
+
+        const successDiv = document.createElement('div');
+        successDiv.className = 'login-error';
+        successDiv.id = 'login-error';
+        successDiv.style.background = 'rgba(16, 185, 129, 0.2)';
+        successDiv.style.borderColor = '#10b981';
+        successDiv.style.color = '#10b981';
+        successDiv.textContent = message;
+
+        loginForm.insertBefore(successDiv, loginForm.firstChild);
+    }
+
+    /**
+     * Clear login error message
+     */
+    function clearLoginError() {
+        const existingError = document.getElementById('login-error');
+        if (existingError) {
+            existingError.remove();
+        }
+    }
+
+    return {
+        init
+    };
+})();
+
+// Initialize login handler when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-    App.init();
+    LoginHandler.init();
 });
