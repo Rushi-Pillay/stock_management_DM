@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Stock Manager</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <!-- html5-qrcode for barcode and QR code scanning (local copy) -->
+    <script src="js/html5-qrcode.min.js"></script>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <h1>📦 Stock Manager</h1>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Scan View -->
+            <section id="scan-view" class="view active">
+                <div class="scanner-container">
+                    <p class="scanner-hint-text">Point camera at barcode or QR code</p>
+                    <div id="scanner-viewport"></div>
+                    <button id="start-scanner-btn" class="btn btn-primary btn-large">
+                        <span class="btn-icon">📷</span>
+                        Start Scanner
+                    </button>
+                    <button id="stop-scanner-btn" class="btn btn-secondary btn-large" style="display: none;">
+                        <span class="btn-icon">⏹️</span>
+                        Stop Scanner
+                    </button>
+                </div>
+                <div class="manual-entry">
+                    <p>Or enter barcode manually:</p>
+                    <div class="input-group">
+                        <input type="text" id="manual-barcode" placeholder="Enter barcode number">
+                        <button id="manual-lookup-btn" class="btn btn-accent">Look Up</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Search View -->
+            <section id="search-view" class="view">
+                <div class="search-container">
+                    <div class="search-input-wrapper">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" id="search-input" placeholder="Search by name, stock number, or supplier...">
+                        <button id="clear-search-btn" class="clear-btn" style="display: none;">✕</button>
+                    </div>
+                </div>
+                <div id="search-results" class="results-container">
+                    <p class="placeholder-text">Start typing to search inventory...</p>
+                </div>
+            </section>
+
+            <!-- Inventory View -->
+            <section id="inventory-view" class="view">
+                <div class="inventory-header">
+                    <h2>Full Inventory</h2>
+                    <button id="add-item-btn" class="btn btn-accent">
+                        <span class="btn-icon">➕</span>
+                        Add Item
+                    </button>
+                </div>
+                <div id="inventory-list" class="inventory-list">
+                    <!-- Items will be rendered here -->
+                </div>
+            </section>
+        </main>
+
+        <!-- Bottom Navigation -->
+        <nav class="bottom-nav">
+            <button class="nav-btn active" data-view="scan-view">
+                <span class="nav-icon">📷</span>
+                <span class="nav-label">Scan</span>
+            </button>
+            <button class="nav-btn" data-view="search-view">
+                <span class="nav-icon">🔍</span>
+                <span class="nav-label">Search</span>
+            </button>
+            <button class="nav-btn" data-view="inventory-view">
+                <span class="nav-icon">📋</span>
+                <span class="nav-label">Inventory</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- Add/Edit Item Modal -->
+    <div id="item-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">Add New Item</h2>
+                <button class="close-modal-btn">&times;</button>
+            </div>
+            <form id="item-form">
+                <input type="hidden" id="item-id">
+
+                <div class="form-group">
+                    <label for="item-barcode">Barcode</label>
+                    <input type="text" id="item-barcode" placeholder="Barcode (optional)">
+                </div>
+
+                <div class="form-group">
+                    <label for="item-stock-number">Stock Number *</label>
+                    <input type="text" id="item-stock-number" required placeholder="e.g., SKU-001">
+                </div>
+
+                <div class="form-group">
+                    <label for="item-supplier">Supplier *</label>
+                    <input type="text" id="item-supplier" required placeholder="Supplier name">
+                </div>
+
+                <div class="form-group">
+                    <label for="item-description">Description *</label>
+                    <textarea id="item-description" required placeholder="Item description"></textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="item-cost-price">Cost Price *</label>
+                        <input type="number" id="item-cost-price" required step="0.01" min="0" placeholder="0.00">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="item-selling-price">Selling Price *</label>
+                        <input type="number" id="item-selling-price" required step="0.01" min="0" placeholder="0.00">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="item-quantity">Amount in Stock *</label>
+                    <input type="number" id="item-quantity" required min="0" placeholder="0">
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary cancel-btn">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Item</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Item Detail Modal -->
+    <div id="detail-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Item Details</h2>
+                <button class="close-modal-btn">&times;</button>
+            </div>
+            <div id="item-details">
+                <!-- Details will be rendered here -->
+            </div>
+            <div class="detail-actions">
+                <button id="edit-item-btn" class="btn btn-secondary">
+                    <span class="btn-icon">✏️</span>
+                    Edit
+                </button>
+                <button id="sell-item-btn" class="btn btn-primary">
+                    <span class="btn-icon">🛒</span>
+                    Sell / Remove Stock
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sell/Remove Stock Modal -->
+    <div id="sell-modal" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2>Remove Stock</h2>
+                <button class="close-modal-btn">&times;</button>
+            </div>
+            <form id="sell-form">
+                <input type="hidden" id="sell-item-id">
+                <p id="sell-item-name" class="sell-item-info"></p>
+                <p id="sell-current-stock" class="current-stock"></p>
+
+                <div class="form-group">
+                    <label for="sell-quantity">Quantity to Remove *</label>
+                    <input type="number" id="sell-quantity" required min="1" value="1">
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary cancel-btn">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Confirm Removal</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <!-- Scripts -->
+    <script src="js/storage.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/scanner.js"></script>
+    <script src="js/app.js"></script>
+</body>
+
+</html>
