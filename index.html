@@ -14,7 +14,45 @@
 </head>
 
 <body>
-    <div class="app-container">
+    <!-- Login Overlay -->
+    <div id="login-overlay" class="login-overlay">
+        <div class="login-container">
+            <div class="login-header">
+                <div class="login-icon">🔐</div>
+                <h1>Stock Manager</h1>
+                <p>Enter your GitHub token to access your inventory</p>
+            </div>
+            <form id="login-form" class="login-form">
+                <div class="form-group">
+                    <label for="github-token">GitHub Personal Access Token</label>
+                    <input type="password" id="github-token" placeholder="ghp_xxxxxxxxxxxx" required autocomplete="off">
+                    <small class="token-hint">Token is stored only for this session</small>
+                </div>
+                <div class="form-group">
+                    <label for="gist-id">Gist ID (leave empty to create new)</label>
+                    <input type="text" id="gist-id" placeholder="Optional - existing Gist ID" autocomplete="off">
+                    <small class="token-hint">Find this in the URL of your Gist</small>
+                </div>
+                <button type="submit" class="btn btn-primary btn-large login-btn">
+                    <span class="btn-icon">🚀</span>
+                    Connect to GitHub
+                </button>
+            </form>
+            <div class="login-help">
+                <details>
+                    <summary>How to get a GitHub token?</summary>
+                    <ol>
+                        <li>Go to GitHub → Settings → Developer settings</li>
+                        <li>Click "Personal access tokens" → "Tokens (classic)"</li>
+                        <li>Generate new token with "gist" scope</li>
+                        <li>Copy and paste the token here</li>
+                    </ol>
+                </details>
+            </div>
+        </div>
+    </div>
+
+    <div class="app-container hidden">
         <!-- Header -->
         <header class="app-header">
             <h1>📦 Stock Manager</h1>
