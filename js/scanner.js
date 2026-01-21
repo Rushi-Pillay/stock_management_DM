@@ -43,11 +43,12 @@ const Scanner = (function () {
                 ]
             });
 
-            // Configuration
+            // Configuration - optimized for better scanning
             const config = {
-                fps: 10,
-                qrbox: 250,
-                disableFlip: false
+                fps: 15,
+                qrbox: { width: 250, height: 150 },
+                disableFlip: false,
+                aspectRatio: 1.777
             };
 
             // Start scanning
