@@ -416,13 +416,15 @@ const App = (function () {
 
 /**
  * Login Handler
- * Manages GitHub token authentication flow
+ * Manages GitHub token authentication flow for shared team access
  */
 const LoginHandler = (function () {
     const loginOverlay = document.getElementById('login-overlay');
     const loginForm = document.getElementById('login-form');
     const tokenInput = document.getElementById('github-token');
     const gistIdInput = document.getElementById('gist-id');
+    const gistIdGroup = document.getElementById('gist-id-group');
+    const showGistIdBtn = document.getElementById('show-gist-id-btn');
     const appContainer = document.querySelector('.app-container');
 
     /**
@@ -433,6 +435,12 @@ const LoginHandler = (function () {
         if (Storage.isAuthenticated()) {
             showApp();
             return;
+        }
+
+        // Auto-populate Gist ID from localStorage if available
+        const savedGistId = Storage.getGistId();
+        if (savedGistId && gistIdInput) {
+            gistIdInput.value = savedGistId;
         }
 
         // Show login and bind events
@@ -465,6 +473,17 @@ const LoginHandler = (function () {
             e.preventDefault();
             await handleLogin();
         });
+
+        // Advanced options - show Gist ID field
+        if (showGistIdBtn) {
+            showGistIdBtn.addEventListener('click', () => {
+                if (gistIdGroup) {
+                    gistIdGroup.style.display = 'block';
+                    showGistIdBtn.textContent = 'Inventory ID field visible above';
+                    showGistIdBtn.disabled = true;
+                }
+            });
+        }
     }
 
     /**
@@ -472,10 +491,10 @@ const LoginHandler = (function () {
      */
     async function handleLogin() {
         const token = tokenInput.value.trim();
-        const gistId = gistIdInput.value.trim() || null;
+        const gistId = gistIdInput.value.trim() || Storage.getGistId() || null;
 
         if (!token) {
-            showLoginError('Please enter your GitHub token');
+            showLoginError('Please enter the team password');
             return;
         }
 
@@ -492,23 +511,44 @@ const LoginHandler = (function () {
             const result = await Storage.authenticate(token, gistId);
 
             if (result.success) {
-                // Store Gist ID for display
+                // If new Gist was created, show the ID prominently for sharing
                 if (!gistId) {
-                    // New Gist created - show the ID to user
-                    showLoginSuccess(`Connected! Your Gist ID: ${result.gistId}`);
-                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    showLoginSuccess(`✅ Shared inventory created!`);
+                    showShareInfo(result.gistId);
+                    await new Promise(resolve => setTimeout(resolve, 4000));
                 }
 
                 showApp();
             }
         } catch (error) {
             console.error('Login failed:', error);
-            showLoginError(error.message || 'Authentication failed. Please check your token.');
+            showLoginError(error.message || 'Authentication failed. Please check the team password.');
 
             // Reset button
             submitBtn.classList.remove('loading');
             submitBtn.innerHTML = originalContent;
         }
+    }
+
+    /**
+     * Show shareable info for team setup
+     * @param {string} gistId
+     */
+    function showShareInfo(gistId) {
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'login-error';
+        infoDiv.id = 'share-info';
+        infoDiv.style.background = 'rgba(6, 182, 212, 0.2)';
+        infoDiv.style.borderColor = '#06b6d4';
+        infoDiv.style.color = '#06b6d4';
+        infoDiv.style.textAlign = 'left';
+        infoDiv.innerHTML = `
+            <strong>📋 Share with your team:</strong><br>
+            <small>Inventory ID: <code style="background:#1a1a2e;padding:2px 6px;border-radius:4px;">${gistId}</code></small><br>
+            <small>(Team members need this + the password for first login)</small>
+        `;
+
+        loginForm.insertBefore(infoDiv, loginForm.firstChild);
     }
 
     /**
@@ -551,6 +591,10 @@ const LoginHandler = (function () {
         const existingError = document.getElementById('login-error');
         if (existingError) {
             existingError.remove();
+        }
+        const existingShare = document.getElementById('share-info');
+        if (existingShare) {
+            existingShare.remove();
         }
     }
 
