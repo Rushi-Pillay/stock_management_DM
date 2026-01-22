@@ -66,21 +66,33 @@ const App = (function () {
      * Bind scanner-related events
      */
     function bindScannerEvents() {
-        // Start scanner button
+        // Start scanner button (opens camera)
         document.getElementById('start-scanner-btn').addEventListener('click', () => {
             Scanner.start(handleBarcodeDetected)
                 .then(() => {
-                    UI.showToast('Scanner active - point at barcode', 'success');
+                    UI.showToast('Camera ready - position barcode and tap Capture', 'success');
                 })
                 .catch(err => {
                     UI.showToast(err.message, 'error');
                 });
         });
 
-        // Stop scanner button
+        // Capture button - takes snapshot and scans
+        document.getElementById('capture-btn').addEventListener('click', () => {
+            UI.showToast('Processing...', 'success');
+            Scanner.capture()
+                .then(decodedText => {
+                    // The scanner will call handleBarcodeDetected automatically
+                })
+                .catch(err => {
+                    UI.showToast(err.message, 'warning');
+                });
+        });
+
+        // Stop scanner button (closes camera)
         document.getElementById('stop-scanner-btn').addEventListener('click', () => {
             Scanner.stop();
-            UI.showToast('Scanner stopped');
+            UI.showToast('Camera closed');
         });
 
         // Manual barcode lookup

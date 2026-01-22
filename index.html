@@ -72,15 +72,19 @@
             <!-- Scan View -->
             <section id="scan-view" class="view active">
                 <div class="scanner-container">
-                    <p class="scanner-hint-text">Point camera at barcode or QR code</p>
+                    <p class="scanner-hint-text">Position barcode in view, then tap Capture</p>
                     <div id="scanner-viewport"></div>
                     <button id="start-scanner-btn" class="btn btn-primary btn-large">
                         <span class="btn-icon">📷</span>
-                        Start Scanner
+                        Open Camera
+                    </button>
+                    <button id="capture-btn" class="btn btn-accent btn-large" style="display: none;">
+                        <span class="btn-icon">📸</span>
+                        Capture Photo
                     </button>
                     <button id="stop-scanner-btn" class="btn btn-secondary btn-large" style="display: none;">
                         <span class="btn-icon">⏹️</span>
-                        Stop Scanner
+                        Close Camera
                     </button>
                 </div>
                 <div class="manual-entry">

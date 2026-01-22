@@ -191,6 +191,21 @@ body {
     border-color: var(--accent-primary) !important;
 }
 
+/* Scanner button group */
+.scanner-container .btn {
+    width: 100%;
+    max-width: 400px;
+}
+
+.scanner-container .btn+.btn {
+    margin-top: var(--spacing-sm);
+}
+
+/* When multiple buttons are visible, show them in a row */
+#capture-btn:not([style*="display: none"])~#stop-scanner-btn:not([style*="display: none"]) {
+    margin-top: 0;
+}
+
 .manual-entry {
     width: 100%;
     max-width: 400px;
@@ -858,8 +873,15 @@ label {
 }
 
 @keyframes pulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.1); }
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.1);
+    }
 }
 
 .login-header h1 {
@@ -936,8 +958,13 @@ label {
 }
 
 @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .login-error {
