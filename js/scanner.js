@@ -50,14 +50,22 @@ const Scanner = (function () {
 
             onDetectCallback = onDetect;
 
-            // Check if ZXing is available
-            if (typeof ZXing === 'undefined') {
-                reject(new Error('Scanner library not loaded. Please refresh the page.'));
+            const hasNativeAPI = 'BarcodeDetector' in window;
+            const hasZXing = typeof ZXing !== 'undefined';
+
+            if (!hasNativeAPI && !hasZXing) {
+                reject(new Error('Scanner library not loaded and native API not supported. Please use Chrome/Edge or refresh.'));
                 return;
             }
 
-            // Initialize the code reader
-            initCodeReader();
+            // Show which engine handles the scanning
+            if (hasNativeAPI) {
+                console.log('🚀 Using Native BarcodeDetector API');
+            } else {
+                console.log('Using ZXing Library');
+                // Initialize the code reader only if we might need it
+                initCodeReader();
+            }
 
             // Create video element if it doesn't exist
             const viewport = document.getElementById('scanner-viewport');
