@@ -1,17 +1,42 @@
 /**
- * Scanner Module - Snapshot-based Barcode Scanning
+ * Scanner Module - Snapshot-based Barcode Scanning using ZXing-js
  * 
- * Uses html5-qrcode library to scan barcodes from captured images.
+ * Uses ZXing library for more reliable barcode detection.
  * Takes a snapshot of the camera feed and processes it for barcodes.
  */
 
 const Scanner = (function () {
-    let html5QrCode = null;
+    let codeReader = null;
     let videoStream = null;
     let videoElement = null;
     let canvasElement = null;
     let onDetectCallback = null;
     let isCameraActive = false;
+
+    /**
+     * Initialize ZXing code reader
+     */
+    function initCodeReader() {
+        if (!codeReader && typeof ZXing !== 'undefined') {
+            const hints = new Map();
+            const formats = [
+                ZXing.BarcodeFormat.QR_CODE,
+                ZXing.BarcodeFormat.EAN_13,
+                ZXing.BarcodeFormat.EAN_8,
+                ZXing.BarcodeFormat.UPC_A,
+                ZXing.BarcodeFormat.UPC_E,
+                ZXing.BarcodeFormat.CODE_128,
+                ZXing.BarcodeFormat.CODE_39,
+                ZXing.BarcodeFormat.CODE_93,
+                ZXing.BarcodeFormat.CODABAR,
+                ZXing.BarcodeFormat.ITF
+            ];
+            hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+            hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+            codeReader = new ZXing.BrowserMultiFormatReader(hints);
+        }
+        return codeReader;
+    }
 
     /**
      * Initialize and start the camera preview (not scanning)
@@ -25,11 +50,14 @@ const Scanner = (function () {
 
             onDetectCallback = onDetect;
 
-            // Check if Html5Qrcode is available
-            if (typeof Html5Qrcode === 'undefined') {
+            // Check if ZXing is available
+            if (typeof ZXing === 'undefined') {
                 reject(new Error('Scanner library not loaded. Please refresh the page.'));
                 return;
             }
+
+            // Initialize the code reader
+            initCodeReader();
 
             // Create video element if it doesn't exist
             const viewport = document.getElementById('scanner-viewport');
@@ -45,27 +73,22 @@ const Scanner = (function () {
             videoElement.style.borderRadius = '16px';
             viewport.appendChild(videoElement);
 
+            // Create bounding box overlay
+            const boundingBox = document.createElement('div');
+            boundingBox.className = 'scanner-bounding-box';
+            boundingBox.innerHTML = `
+                <div class="corner top-left"></div>
+                <div class="corner top-right"></div>
+                <div class="corner bottom-left"></div>
+                <div class="corner bottom-right"></div>
+                <span class="scan-hint">Place barcode here</span>
+            `;
+            viewport.appendChild(boundingBox);
+
             // Create hidden canvas for capturing snapshots
             canvasElement = document.createElement('canvas');
             canvasElement.style.display = 'none';
             viewport.appendChild(canvasElement);
-
-            // Create Html5Qrcode instance for decoding
-            html5QrCode = new Html5Qrcode("scanner-viewport", {
-                formatsToSupport: [
-                    Html5QrcodeSupportedFormats.QR_CODE,
-                    Html5QrcodeSupportedFormats.EAN_13,
-                    Html5QrcodeSupportedFormats.EAN_8,
-                    Html5QrcodeSupportedFormats.UPC_A,
-                    Html5QrcodeSupportedFormats.UPC_E,
-                    Html5QrcodeSupportedFormats.CODE_128,
-                    Html5QrcodeSupportedFormats.CODE_39,
-                    Html5QrcodeSupportedFormats.CODE_93,
-                    Html5QrcodeSupportedFormats.CODABAR,
-                    Html5QrcodeSupportedFormats.ITF
-                ],
-                verbose: false
-            });
 
             // Request camera access
             navigator.mediaDevices.getUserMedia({
@@ -133,49 +156,106 @@ const Scanner = (function () {
             const ctx = canvasElement.getContext('2d');
             ctx.drawImage(videoElement, 0, 0, videoWidth, videoHeight);
 
-            // Get image data as base64
-            const imageData = canvasElement.toDataURL('image/jpeg', 0.9);
+            // 1. Try Native BarcodeDetector API first (Chrome/Edge/Android)
+            if ('BarcodeDetector' in window) {
+                const formats = [
+                    'qr_code', 'ean_13', 'ean_8', 'upc_a', 'upc_e',
+                    'code_128', 'code_39', 'code_93', 'codabar', 'itf'
+                ];
 
-            // Scan the captured image
-            html5QrCode.scanFile(dataURItoFile(imageData, 'capture.jpg'), true)
-                .then(decodedText => {
-                    console.log('✅ Detected:', decodedText);
+                try {
+                    const detector = new BarcodeDetector({ formats: formats });
+                    detector.detect(canvasElement)
+                        .then(barcodes => {
+                            if (barcodes.length > 0) {
+                                // Success with native detector
+                                const decodedText = barcodes[0].rawValue;
+                                console.log('✅ Detected (Native):', decodedText);
+                                onScanSuccess(decodedText);
+                                resolve(decodedText);
+                            } else {
+                                // No barcode found by native detector -> Try ZXing fallback
+                                console.log('Native detector found nothing, trying ZXing...');
+                                scanWithZXing(resolve, reject);
+                            }
+                        })
+                        .catch(err => {
+                            console.error('Native detector error:', err);
+                            scanWithZXing(resolve, reject);
+                        });
+                    return;
+                } catch (e) {
+                    console.error('BarcodeDetector creation failed:', e);
+                    // Fall through to ZXing
+                }
+            }
 
-                    // Vibrate on success
-                    if (navigator.vibrate) {
-                        navigator.vibrate([100, 50, 100]);
-                    }
-
-                    // Stop camera after successful scan
-                    stopCamera();
-
-                    // Call the callback
-                    if (onDetectCallback) {
-                        onDetectCallback(decodedText);
-                    }
-
-                    resolve(decodedText);
-                })
-                .catch(err => {
-                    // No barcode found in the image
-                    reject(new Error('No barcode detected. Please try again.'));
-                });
+            // 2. Fallback to ZXing
+            scanWithZXing(resolve, reject);
         });
     }
 
     /**
-     * Convert data URI to File object
+     * Helper: Scan using ZXing library
      */
-    function dataURItoFile(dataURI, filename) {
-        const arr = dataURI.split(',');
-        const mime = arr[0].match(/:(.*?);/)[1];
-        const bstr = atob(arr[1]);
-        let n = bstr.length;
-        const u8arr = new Uint8Array(n);
-        while (n--) {
-            u8arr[n] = bstr.charCodeAt(n);
+    function scanWithZXing(resolve, reject) {
+        try {
+            // Method 1: Decode from canvas context
+            const luminanceSource = new ZXing.HTMLCanvasElementLuminanceSource(canvasElement);
+            const binaryBitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminanceSource));
+
+            const reader = new ZXing.MultiFormatReader();
+            const hints = new Map();
+            hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+            reader.setHints(hints);
+
+            const result = reader.decode(binaryBitmap);
+            const decodedText = result.getText();
+
+            console.log('✅ Detected (ZXing 1):', decodedText);
+            onScanSuccess(decodedText);
+            resolve(decodedText);
+        } catch (err) {
+            // Method 2: Decode from image element (sometimes robust for different images)
+            const imageData = canvasElement.toDataURL('image/png');
+            const img = new Image();
+            img.onload = function () {
+                try {
+                    if (!codeReader) initCodeReader();
+                    codeReader.decodeFromImage(img)
+                        .then(result => {
+                            const decodedText = result.getText();
+                            console.log('✅ Detected (ZXing 2):', decodedText);
+                            onScanSuccess(decodedText);
+                            resolve(decodedText);
+                        })
+                        .catch(err2 => {
+                            reject(new Error('No barcode detected. Try moving closer.'));
+                        });
+                } catch (e) {
+                    reject(new Error('No barcode detected. Try moving closer.'));
+                }
+            };
+            img.src = imageData;
         }
-        return new File([u8arr], filename, { type: mime });
+    }
+
+    /**
+     * Helper: Handle successful scan
+     */
+    function onScanSuccess(decodedText) {
+        // Vibrate on success
+        if (navigator.vibrate) {
+            navigator.vibrate([100, 50, 100]);
+        }
+
+        // Stop camera
+        stopCamera();
+
+        // Call callback
+        if (onDetectCallback) {
+            onDetectCallback(decodedText);
+        }
     }
 
     /**
@@ -212,9 +292,9 @@ const Scanner = (function () {
         return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
     }
 
-    // Public API - keeping backward compatibility
+    // Public API
     return {
-        start: startCamera,  // Renamed internally but keeping external name
+        start: startCamera,
         stop: stopCamera,
         capture: captureAndScan,
         isActive,

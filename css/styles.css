@@ -191,6 +191,87 @@ body {
     border-color: var(--accent-primary) !important;
 }
 
+/* Scanner bounding box overlay */
+.scanner-bounding-box {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 70%;
+    height: 40%;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.scanner-bounding-box .corner {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-color: var(--accent-secondary);
+    border-style: solid;
+    border-width: 0;
+}
+
+.scanner-bounding-box .corner.top-left {
+    top: 0;
+    left: 0;
+    border-top-width: 3px;
+    border-left-width: 3px;
+    border-top-left-radius: 8px;
+}
+
+.scanner-bounding-box .corner.top-right {
+    top: 0;
+    right: 0;
+    border-top-width: 3px;
+    border-right-width: 3px;
+    border-top-right-radius: 8px;
+}
+
+.scanner-bounding-box .corner.bottom-left {
+    bottom: 0;
+    left: 0;
+    border-bottom-width: 3px;
+    border-left-width: 3px;
+    border-bottom-left-radius: 8px;
+}
+
+.scanner-bounding-box .corner.bottom-right {
+    bottom: 0;
+    right: 0;
+    border-bottom-width: 3px;
+    border-right-width: 3px;
+    border-bottom-right-radius: 8px;
+}
+
+.scanner-bounding-box .scan-hint {
+    position: absolute;
+    bottom: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: white;
+    font-size: var(--font-size-sm);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+    white-space: nowrap;
+}
+
+/* Subtle animation for the bounding box */
+@keyframes pulse-border {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.scanner-bounding-box .corner {
+    animation: pulse-border 2s ease-in-out infinite;
+}
+
 /* Scanner button group */
 .scanner-container .btn {
     width: 100%;
