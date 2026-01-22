@@ -164,8 +164,8 @@ body {
 
 #scanner-viewport {
     width: 100%;
-    max-width: 400px;
-    min-height: 300px;
+    max-width: 300px;
+    min-height: 200px;
     background: var(--bg-card);
     border-radius: var(--radius-lg);
     overflow: hidden;
