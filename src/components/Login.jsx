@@ -1,29 +1,57 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
-import { Package, Lock, Key } from 'lucide-react';
+import { Package, Lock, Mail, UserPlus } from 'lucide-react';
 
 export default function Login() {
-    const { login, loading } = useAuth();
+    const { login, signup } = useAuth();
     const { showToast } = useToast();
 
-    const [token, setToken] = useState('');
-    const [gistId, setGistId] = useState('');
-    const [showAdvanced, setShowAdvanced] = useState(false);
+    const [isLogin, setIsLogin] = useState(true);
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [loading, setLoading] = useState(false);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!token) {
-            showToast('Please enter the team password', 'error');
+        if (!email || !password) {
+            showToast('Please enter both email and password', 'error');
             return;
         }
 
-        const result = await login(token, gistId || null);
-        if (!result.success) {
-            showToast(result.error || 'Authentication failed', 'error');
-        } else {
-            showToast('Welcome back!', 'success');
+        if (password.length < 6) {
+            showToast('Password must be at least 6 characters', 'error');
+            return;
         }
+
+        setLoading(true);
+        try {
+            if (isLogin) {
+                await login(email, password);
+                showToast('Welcome back!', 'success');
+            } else {
+                await signup(email, password);
+                showToast('Account created successfully!', 'success');
+            }
+        } catch (err) {
+            console.error("Auth Error:", err);
+            // Firebase error messages are often "Firebase: Error (auth/wrong-password)."
+            // We can clean this up or just show a generic message for now
+            let msg = "Authentication failed";
+            if (err.code === 'auth/wrong-password') msg = 'Incorrect password';
+            if (err.code === 'auth/user-not-found') msg = 'No account found with this email';
+            if (err.code === 'auth/email-already-in-use') msg = 'Email already in use';
+
+            showToast(msg, 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const toggleMode = () => {
+        setIsLogin(!isLogin);
+        setEmail('');
+        setPassword('');
     };
 
     return (
@@ -34,44 +62,45 @@ export default function Login() {
                         <Package size={48} />
                     </div>
                     <h1>Stock Manager</h1>
-                    <p>Enter the team password to access shared inventory</p>
+                    <p>
+                        {isLogin
+                            ? 'Enter your credentials to access inventory'
+                            : 'Create a new account to get started'}
+                    </p>
                 </div>
 
                 <form className="login-form" onSubmit={handleSubmit}>
                     <div className="form-group">
-                        <label htmlFor="github-token">Team Password</label>
+                        <label htmlFor="email">Email Address</label>
+                        <div className="input-with-icon">
+                            <Mail size={16} className="input-icon" />
+                            <input
+                                type="email"
+                                id="email"
+                                placeholder="name@company.com"
+                                required
+                                autoComplete="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="form-group">
+                        <label htmlFor="password">Password</label>
                         <div className="input-with-icon">
                             <Lock size={16} className="input-icon" />
                             <input
                                 type="password"
-                                id="github-token"
-                                placeholder="Enter team password"
+                                id="password"
+                                placeholder="Enter your password"
                                 required
-                                autoComplete="off"
-                                value={token}
-                                onChange={(e) => setToken(e.target.value)}
+                                autoComplete={isLogin ? "current-password" : "new-password"}
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
                             />
                         </div>
-                        <small className="token-hint">Ask your team admin for the password</small>
                     </div>
-
-                    {showAdvanced && (
-                        <div className="form-group slide-down">
-                            <label htmlFor="gist-id">Inventory ID (first-time setup only)</label>
-                            <div className="input-with-icon">
-                                <Key size={16} className="input-icon" />
-                                <input
-                                    type="text"
-                                    id="gist-id"
-                                    placeholder="Leave empty to create new shared inventory"
-                                    autoComplete="off"
-                                    value={gistId}
-                                    onChange={(e) => setGistId(e.target.value)}
-                                />
-                            </div>
-                            <small className="token-hint">Only needed for first-time setup</small>
-                        </div>
-                    )}
 
                     <button
                         type="submit"
@@ -80,38 +109,36 @@ export default function Login() {
                     >
                         {loading ? (
                             <>
-                                <span className="spinner">⏳</span> Connecting...
+                                <span className="spinner">⏳</span> {isLogin ? 'Signing in...' : 'Creating account...'}
                             </>
                         ) : (
                             <>
-                                <span className="btn-icon">🔓</span> Access Inventory
+                                <span className="btn-icon">
+                                    {isLogin ? '🔓' : <UserPlus size={18} />}
+                                </span>
+                                {isLogin ? 'Sign In' : 'Create Account'}
                             </>
                         )}
                     </button>
-                </form>
 
-                <div className="login-help">
-                    <details>
-                        <summary>First-time setup (Admin only)</summary>
-                        <ol>
-                            <li>Go to GitHub → Settings → Developer settings</li>
-                            <li>Click "Personal access tokens" → "Tokens (classic)"</li>
-                            <li>Generate new token with "gist" scope</li>
-                            <li>Use the token as your team password</li>
-                            <li>Share it with your team members</li>
-                        </ol>
-                    </details>
-
-                    <div className="advanced-toggle">
+                    <div style={{ marginTop: '1rem', textAlign: 'center' }}>
                         <button
                             type="button"
-                            className="btn btn-secondary btn-sm"
-                            onClick={() => setShowAdvanced(!showAdvanced)}
+                            onClick={toggleMode}
+                            className="btn-link"
+                            style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#666',
+                                cursor: 'pointer',
+                                textDecoration: 'underline',
+                                fontSize: '0.9rem'
+                            }}
                         >
-                            {showAdvanced ? 'Hide Advanced Options' : 'Show Advanced Options'}
+                            {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
                         </button>
                     </div>
-                </div>
+                </form>
             </div>
         </div>
     );

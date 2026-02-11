@@ -1,98 +1,112 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
-import { githubRequest } from '../utils/github';
+import { db } from '../utils/firebase';
+import {
+    collection,
+    getDocs,
+    addDoc,
+    updateDoc,
+    deleteDoc,
+    doc,
+    query,
+    orderBy
+} from 'firebase/firestore';
 
 const InventoryContext = createContext(null);
-const GIST_FILENAME = 'stock_manager_inventory.json';
-
-// Helper to generate IDs
-const generateId = () => 'item_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 9);
 
 export function InventoryProvider({ children }) {
-    const { token, gistId, isAuthenticated } = useAuth();
+    const { isAuthenticated } = useAuth();
     const { showToast } = useToast();
 
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(false);
 
-    // Load items from Gist
+    // Load items from Firestore
     const loadInventory = useCallback(async (silent = false) => {
         if (!isAuthenticated) return;
 
         if (!silent) setLoading(true);
 
         try {
-            const response = await githubRequest(`/gists/${gistId}`, token);
-            const data = await response.json();
-            const fileContent = data.files[GIST_FILENAME]?.content;
-            const parsedItems = fileContent ? JSON.parse(fileContent) : [];
+            const q = query(collection(db, 'inventory'), orderBy('name'));
+            const querySnapshot = await getDocs(q);
+            const loadedItems = querySnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
 
-            setItems(parsedItems);
+            setItems(loadedItems);
         } catch (err) {
             console.error('Error loading inventory:', err);
             showToast('Failed to load inventory', 'error');
         } finally {
             if (!silent) setLoading(false);
         }
-    }, [token, gistId, isAuthenticated, showToast]);
+    }, [isAuthenticated, showToast]);
 
-    // Save items to Gist
-    const saveInventory = async (newItems) => {
-        if (!isAuthenticated) return;
-
+    // CRUD Operations
+    const addItem = async (itemData) => {
         try {
-            await githubRequest(`/gists/${gistId}`, token, {
-                method: 'PATCH',
-                body: JSON.stringify({
-                    files: {
-                        [GIST_FILENAME]: {
-                            content: JSON.stringify(newItems, null, 2)
-                        }
-                    }
-                })
-            });
-            setItems(newItems);
+            const newItem = {
+                ...itemData,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+
+            const docRef = await addDoc(collection(db, 'inventory'), newItem);
+
+            // Optimistic update or reload
+            const addedItem = { id: docRef.id, ...newItem };
+            setItems(prev => [...prev, addedItem]);
+
+            showToast('Item added successfully', 'success');
             return true;
         } catch (err) {
-            console.error('Error saving inventory:', err);
-            showToast('Failed to save changes', 'error');
+            console.error('Error adding item:', err);
+            showToast('Failed to add item', 'error');
             return false;
         }
     };
 
-    // CRUD Operations
-    const addItem = async (itemData) => {
-        const newItem = {
-            id: generateId(),
-            ...itemData,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-        };
-
-        const newItems = [...items, newItem];
-        const success = await saveInventory(newItems);
-        if (success) showToast('Item added successfully', 'success');
-        return success;
-    };
-
     const updateItem = async (itemData) => {
-        const newItems = items.map(item =>
-            item.id === itemData.id
-                ? { ...item, ...itemData, updatedAt: new Date().toISOString() }
-                : item
-        );
+        try {
+            const { id, ...data } = itemData;
+            const itemRef = doc(db, 'inventory', id);
 
-        const success = await saveInventory(newItems);
-        if (success) showToast('Item updated successfully', 'success');
-        return success;
+            const updateData = {
+                ...data,
+                updatedAt: new Date().toISOString()
+            };
+
+            await updateDoc(itemRef, updateData);
+
+            setItems(prev => prev.map(item =>
+                item.id === id ? { ...item, ...updateData } : item
+            ));
+
+            showToast('Item updated successfully', 'success');
+            return true;
+        } catch (err) {
+            console.error('Error updating item:', err);
+            showToast('Failed to update item', 'error');
+            return false;
+        }
     };
 
     const deleteItem = async (id) => {
-        const newItems = items.filter(item => item.id !== id);
-        const success = await saveInventory(newItems);
-        if (success) showToast('Item deleted successfully', 'success');
-        return success;
+        try {
+            await deleteDoc(doc(db, 'inventory', id));
+
+            setItems(prev => prev.filter(item => item.id !== id));
+
+            showToast('Item deleted successfully', 'success');
+            return true;
+        } catch (err) {
+            console.error('Error deleting item:', err);
+            showToast('Failed to delete item', 'error');
+            return false;
+        }
     };
 
     const removeStock = async (id, quantity) => {
@@ -104,15 +118,26 @@ export function InventoryProvider({ children }) {
             return false;
         }
 
-        const newItems = items.map(i =>
-            i.id === id
-                ? { ...i, quantity: i.quantity - quantity, updatedAt: new Date().toISOString() }
-                : i
-        );
+        try {
+            const itemRef = doc(db, 'inventory', id);
+            const newQuantity = item.quantity - quantity;
 
-        const success = await saveInventory(newItems);
-        if (success) showToast(`Stock removed. New quantity: ${item.quantity - quantity}`, 'success');
-        return success;
+            await updateDoc(itemRef, {
+                quantity: newQuantity,
+                updatedAt: new Date().toISOString()
+            });
+
+            setItems(prev => prev.map(i =>
+                i.id === id ? { ...i, quantity: newQuantity } : i
+            ));
+
+            showToast(`Stock removed. New quantity: ${newQuantity}`, 'success');
+            return true;
+        } catch (err) {
+            console.error('Error removing stock:', err);
+            showToast('Failed to update stock', 'error');
+            return false;
+        }
     };
 
     // Initial load

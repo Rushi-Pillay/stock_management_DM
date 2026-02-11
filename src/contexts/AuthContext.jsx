@@ -1,90 +1,52 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { githubRequest } from '../utils/github';
+import { auth } from '../utils/firebase';
+import {
+    signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
+    signOut,
+    onAuthStateChanged
+} from 'firebase/auth';
 
 const AuthContext = createContext(null);
-const GIST_FILENAME = 'stock_manager_inventory.json';
-const SESSION_TOKEN_KEY = 'github_token';
-const SESSION_GIST_ID_KEY = 'gist_id';
 
 export function AuthProvider({ children }) {
-    const [token, setToken] = useState(sessionStorage.getItem(SESSION_TOKEN_KEY));
-    const [gistId, setGistId] = useState(sessionStorage.getItem(SESSION_GIST_ID_KEY));
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
+    const [user, setUser] = useState(null);
+    const [loading, setLoading] = useState(true);
 
-    const login = async (newToken, existingGistId = null) => {
-        setLoading(true);
-        setError(null);
-
-        try {
-            // Verify token
-            await githubRequest('/user', newToken);
-
-            let targetGistId = existingGistId;
-
-            if (targetGistId) {
-                // Verify Gist exists and check for file
-                const response = await githubRequest(`/gists/${targetGistId}`, newToken);
-                const data = await response.json();
-
-                if (!data.files[GIST_FILENAME]) {
-                    // Add file to Gist if missing
-                    await githubRequest(`/gists/${targetGistId}`, newToken, {
-                        method: 'PATCH',
-                        body: JSON.stringify({
-                            files: {
-                                [GIST_FILENAME]: {
-                                    content: JSON.stringify([], null, 2)
-                                }
-                            }
-                        })
-                    });
-                }
-            } else {
-                // Create new Gist
-                const response = await githubRequest('/gists', newToken, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        description: 'Stock Manager Inventory Data',
-                        public: false,
-                        files: {
-                            [GIST_FILENAME]: {
-                                content: JSON.stringify([], null, 2)
-                            }
-                        }
-                    })
-                });
-                const data = await response.json();
-                targetGistId = data.id;
-            }
-
-            // Success - save to state and session
-            setToken(newToken);
-            setGistId(targetGistId);
-            sessionStorage.setItem(SESSION_TOKEN_KEY, newToken);
-            sessionStorage.setItem(SESSION_GIST_ID_KEY, targetGistId);
-
-            return { success: true, gistId: targetGistId };
-
-        } catch (err) {
-            console.error('Login failed:', err);
-            setError(err.message);
-            return { success: false, error: err.message };
-        } finally {
+    useEffect(() => {
+        // This listener handles the state change automatically
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+            console.log("Auth state changed:", currentUser ? "User logged in" : "No user");
+            setUser(currentUser);
             setLoading(false);
-        }
+        });
+
+        return unsubscribe;
+    }, []);
+
+    const login = (email, password) => {
+        return signInWithEmailAndPassword(auth, email, password);
+    };
+
+    const signup = (email, password) => {
+        return createUserWithEmailAndPassword(auth, email, password);
     };
 
     const logout = () => {
-        setToken(null);
-        setGistId(null);
-        sessionStorage.removeItem(SESSION_TOKEN_KEY);
-        sessionStorage.removeItem(SESSION_GIST_ID_KEY);
+        return signOut(auth);
+    };
+
+    const value = {
+        user,
+        login,
+        signup,
+        logout,
+        isAuthenticated: !!user
     };
 
     return (
-        <AuthContext.Provider value={{ token, gistId, login, logout, loading, error, isAuthenticated: !!token && !!gistId }}>
-            {children}
+        <AuthContext.Provider value={value}>
+            {!loading && children}
         </AuthContext.Provider>
     );
 }

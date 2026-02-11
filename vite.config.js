@@ -4,5 +4,6 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: '/stock_management_DM/',
+  // Use relative base path to ensure assets load correctly on any subdirectory
+  base: './',
 })
