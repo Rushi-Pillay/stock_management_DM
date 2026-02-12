@@ -8,6 +8,7 @@ import Login from './components/Login';
 import ScanView from './components/ScanView';
 import SearchView from './components/SearchView';
 import InventoryView from './components/InventoryView';
+import TransactionsView from './components/TransactionsView';
 import './index.css';
 
 function MainApp() {
@@ -23,6 +24,7 @@ function MainApp() {
       {currentView === 'scan' && <ScanView />}
       {currentView === 'search' && <SearchView />}
       {currentView === 'inventory' && <InventoryView />}
+      {currentView === 'transactions' && <TransactionsView />}
     </Layout>
   );
 }

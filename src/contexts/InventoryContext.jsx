@@ -10,7 +10,9 @@ import {
     deleteDoc,
     doc,
     query,
-    orderBy
+    orderBy,
+    limit,
+    serverTimestamp
 } from 'firebase/firestore';
 
 const InventoryContext = createContext(null);
@@ -20,6 +22,7 @@ export function InventoryProvider({ children }) {
     const { showToast } = useToast();
 
     const [items, setItems] = useState([]);
+    const [transactions, setTransactions] = useState([]);
     const [loading, setLoading] = useState(false);
 
     // Load items from Firestore
@@ -45,6 +48,46 @@ export function InventoryProvider({ children }) {
         }
     }, [isAuthenticated, showToast]);
 
+    // Load transactions
+    const loadTransactions = useCallback(async () => {
+        if (!isAuthenticated) return;
+
+        try {
+            const q = query(
+                collection(db, 'transactions'),
+                orderBy('timestamp', 'desc'),
+                limit(50)
+            );
+            const querySnapshot = await getDocs(q);
+            const loadedTransactions = querySnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+            setTransactions(loadedTransactions);
+        } catch (err) {
+            console.error('Error loading transactions:', err);
+            // Don't toast for transaction loading errors to avoid spam
+        }
+    }, [isAuthenticated]);
+
+    const logTransaction = async (type, details) => {
+        try {
+            const transaction = {
+                type,
+                details,
+                timestamp: new Date().toISOString(), // Use client time for immediate display
+                serverTimestamp: serverTimestamp()
+            };
+
+            const docRef = await addDoc(collection(db, 'transactions'), transaction);
+
+            // Optimistic update
+            setTransactions(prev => [{ id: docRef.id, ...transaction }, ...prev]);
+        } catch (err) {
+            console.error('Error logging transaction:', err);
+        }
+    };
+
     // CRUD Operations
     const addItem = async (itemData) => {
         try {
@@ -61,6 +104,7 @@ export function InventoryProvider({ children }) {
             setItems(prev => [...prev, addedItem]);
 
             showToast('Item added successfully', 'success');
+            logTransaction('ADD_ITEM', { itemName: newItem.name, quantity: newItem.quantity });
             return true;
         } catch (err) {
             console.error('Error adding item:', err);
@@ -86,6 +130,7 @@ export function InventoryProvider({ children }) {
             ));
 
             showToast('Item updated successfully', 'success');
+            logTransaction('UPDATE_ITEM', { itemName: data.name, updates: data });
             return true;
         } catch (err) {
             console.error('Error updating item:', err);
@@ -101,6 +146,8 @@ export function InventoryProvider({ children }) {
             setItems(prev => prev.filter(item => item.id !== id));
 
             showToast('Item deleted successfully', 'success');
+            const deletedItem = items.find(i => i.id === id);
+            logTransaction('DELETE_ITEM', { itemName: deletedItem?.name || 'Unknown Item' });
             return true;
         } catch (err) {
             console.error('Error deleting item:', err);
@@ -132,6 +179,11 @@ export function InventoryProvider({ children }) {
             ));
 
             showToast(`Stock removed. New quantity: ${newQuantity}`, 'success');
+            logTransaction('REMOVE_STOCK', {
+                itemName: item.name,
+                quantityRemoved: quantity,
+                remainingQuantity: newQuantity
+            });
             return true;
         } catch (err) {
             console.error('Error removing stock:', err);
@@ -144,10 +196,12 @@ export function InventoryProvider({ children }) {
     useEffect(() => {
         if (isAuthenticated) {
             loadInventory();
+            loadTransactions();
         } else {
             setItems([]);
+            setTransactions([]);
         }
-    }, [isAuthenticated, loadInventory]);
+    }, [isAuthenticated, loadInventory, loadTransactions]);
 
     return (
         <InventoryContext.Provider value={{
@@ -157,7 +211,9 @@ export function InventoryProvider({ children }) {
             addItem,
             updateItem,
             deleteItem,
-            removeStock
+            removeStock,
+            transactions,
+            loadTransactions
         }}>
             {children}
         </InventoryContext.Provider>

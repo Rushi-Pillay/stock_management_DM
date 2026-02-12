@@ -1,10 +1,11 @@
-import { Package, Camera, Search, ClipboardList } from 'lucide-react';
+import { Package, Camera, Search, ClipboardList, History } from 'lucide-react';
 
 export default function Layout({ children, currentView, onViewChange }) {
     const navItems = [
         { id: 'scan', label: 'Scan', icon: Camera },
         { id: 'search', label: 'Search', icon: Search },
         { id: 'inventory', label: 'Inventory', icon: ClipboardList },
+        { id: 'transactions', label: 'History', icon: History },
     ];
 
     return (
