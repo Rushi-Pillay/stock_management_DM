@@ -7,7 +7,7 @@ import { useInventory } from './InventoryContext';
 const ModalContext = createContext(null);
 
 export function ModalProvider({ children }) {
-    const { addItem, updateItem, removeStock } = useInventory();
+    const { addItem, updateItem, removeStock, deleteItem } = useInventory();
 
     const [activeModal, setActiveModal] = useState(null); // 'item', 'detail', 'sell'
     const [modalProps, setModalProps] = useState({});
@@ -26,6 +26,12 @@ export function ModalProvider({ children }) {
                 } else {
                     await addItem(data);
                 }
+            },
+            onDelete: async (id) => {
+                if (window.confirm(`Are you sure you want to delete this item? This action cannot be undone.`)) {
+                    await deleteItem(id);
+                    closeModals();
+                }
             }
         });
         setActiveModal('item');
@@ -34,8 +40,8 @@ export function ModalProvider({ children }) {
     const openSellModal = useCallback((item) => {
         setModalProps({
             item,
-            onConfirm: async (id, quantity) => {
-                await removeStock(id, quantity);
+            onConfirm: async (id, quantity, salePrice) => {
+                await removeStock(id, quantity, salePrice);
             }
         });
         setActiveModal('sell');

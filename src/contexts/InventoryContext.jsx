@@ -10,15 +10,13 @@ import {
     deleteDoc,
     doc,
     query,
-    orderBy,
-    limit,
-    serverTimestamp
+    orderBy
 } from 'firebase/firestore';
 
 const InventoryContext = createContext(null);
 
 export function InventoryProvider({ children }) {
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, user, userData } = useAuth();
     const { showToast } = useToast();
 
     const [items, setItems] = useState([]);
@@ -32,13 +30,21 @@ export function InventoryProvider({ children }) {
         if (!silent) setLoading(true);
 
         try {
-            const q = query(collection(db, 'inventory'), orderBy('name'));
+            // const q = query(collection(db, 'inventory'), orderBy('name'));
+            const q = query(collection(db, 'inventory'));
+
             const querySnapshot = await getDocs(q);
+
+            if (querySnapshot.empty) {
+                console.log("Snapshot is empty. Check collection.");
+            }
+
             const loadedItems = querySnapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
             }));
 
+            console.log('Inventory loaded successfully', loadedItems.length, 'items');
             setItems(loadedItems);
         } catch (err) {
             console.error('Error loading inventory:', err);
@@ -51,42 +57,19 @@ export function InventoryProvider({ children }) {
     // Load transactions
     const loadTransactions = useCallback(async () => {
         if (!isAuthenticated) return;
-
         try {
-            const q = query(
-                collection(db, 'transactions'),
-                orderBy('timestamp', 'desc'),
-                limit(50)
-            );
-            const querySnapshot = await getDocs(q);
-            const loadedTransactions = querySnapshot.docs.map(doc => ({
+            const q = query(collection(db, 'transactions'), orderBy('timestamp', 'desc'));
+            const snapshot = await getDocs(q);
+            const loadedTransactions = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
             }));
             setTransactions(loadedTransactions);
         } catch (err) {
-            console.error('Error loading transactions:', err);
-            // Don't toast for transaction loading errors to avoid spam
+            console.error("Error loading transactions:", err);
+            // Don't show toast to avoid spamming if it fails silently
         }
     }, [isAuthenticated]);
-
-    const logTransaction = async (type, details) => {
-        try {
-            const transaction = {
-                type,
-                details,
-                timestamp: new Date().toISOString(), // Use client time for immediate display
-                serverTimestamp: serverTimestamp()
-            };
-
-            const docRef = await addDoc(collection(db, 'transactions'), transaction);
-
-            // Optimistic update
-            setTransactions(prev => [{ id: docRef.id, ...transaction }, ...prev]);
-        } catch (err) {
-            console.error('Error logging transaction:', err);
-        }
-    };
 
     // CRUD Operations
     const addItem = async (itemData) => {
@@ -99,12 +82,25 @@ export function InventoryProvider({ children }) {
 
             const docRef = await addDoc(collection(db, 'inventory'), newItem);
 
+            // Log Transaction
+            await addDoc(collection(db, 'transactions'), {
+                type: 'IN', // 'IN' for buying/initial stock
+                itemId: docRef.id,
+                itemName: newItem.description,
+                quantity: Number(newItem.quantity),
+                costPrice: Number(newItem.costPrice),
+                totalCost: Number(newItem.quantity) * Number(newItem.costPrice),
+                timestamp: new Date().toISOString(),
+                reason: 'Initial Stock',
+                performedBy: userData?.name || user?.email || 'Unknown'
+            });
+
             // Optimistic update or reload
             const addedItem = { id: docRef.id, ...newItem };
             setItems(prev => [...prev, addedItem]);
+            loadTransactions(); // Refresh transactions
 
             showToast('Item added successfully', 'success');
-            logTransaction('ADD_ITEM', { itemName: newItem.name, quantity: newItem.quantity });
             return true;
         } catch (err) {
             console.error('Error adding item:', err);
@@ -123,14 +119,38 @@ export function InventoryProvider({ children }) {
                 updatedAt: new Date().toISOString()
             };
 
+            const oldItem = items.find(i => i.id === id);
+
             await updateDoc(itemRef, updateData);
+
+            // Log transaction if quantity changed or cost price changed significantly
+            // We mainly care about stock changes here
+            if (oldItem) {
+                const oldQty = Number(oldItem.quantity);
+                const newQty = Number(updateData.quantity);
+                const diff = newQty - oldQty;
+
+                if (diff !== 0) {
+                    await addDoc(collection(db, 'transactions'), {
+                        type: diff > 0 ? 'IN' : 'ADJUSTMENT',
+                        itemId: id,
+                        itemName: updateData.description,
+                        quantity: diff, // Log signed difference
+                        costPrice: Number(updateData.costPrice), // Use the NEW cost price
+                        totalCost: diff * Number(updateData.costPrice), // Log signed total cost
+                        timestamp: new Date().toISOString(),
+                        reason: diff > 0 ? 'Stock Update (Add)' : 'Stock Update (Adjustment)',
+                        performedBy: userData?.name || user?.email || 'Unknown'
+                    });
+                    loadTransactions();
+                }
+            }
 
             setItems(prev => prev.map(item =>
                 item.id === id ? { ...item, ...updateData } : item
             ));
 
             showToast('Item updated successfully', 'success');
-            logTransaction('UPDATE_ITEM', { itemName: data.name, updates: data });
             return true;
         } catch (err) {
             console.error('Error updating item:', err);
@@ -140,14 +160,31 @@ export function InventoryProvider({ children }) {
     };
 
     const deleteItem = async (id) => {
+        const itemToDelete = items.find(i => i.id === id);
+
         try {
             await deleteDoc(doc(db, 'inventory', id));
+
+            if (itemToDelete) {
+                await addDoc(collection(db, 'transactions'), {
+                    type: 'DELETE',
+                    itemId: id,
+                    itemName: itemToDelete.description,
+                    quantity: -Number(itemToDelete.quantity), // Negative for deletion
+                    costPrice: Number(itemToDelete.costPrice),
+                    salePrice: 0,
+                    totalCost: -Number(itemToDelete.quantity) * Number(itemToDelete.costPrice), // Negative value leaving
+                    totalSales: 0,
+                    timestamp: new Date().toISOString(),
+                    reason: 'Item Deleted',
+                    performedBy: userData?.name || user?.email || 'Unknown'
+                });
+                loadTransactions();
+            }
 
             setItems(prev => prev.filter(item => item.id !== id));
 
             showToast('Item deleted successfully', 'success');
-            const deletedItem = items.find(i => i.id === id);
-            logTransaction('DELETE_ITEM', { itemName: deletedItem?.name || 'Unknown Item' });
             return true;
         } catch (err) {
             console.error('Error deleting item:', err);
@@ -156,7 +193,7 @@ export function InventoryProvider({ children }) {
         }
     };
 
-    const removeStock = async (id, quantity) => {
+    const removeStock = async (id, quantity, salePrice) => {
         const item = items.find(i => i.id === id);
         if (!item) return false;
 
@@ -174,16 +211,27 @@ export function InventoryProvider({ children }) {
                 updatedAt: new Date().toISOString()
             });
 
+            // Log Transaction
+            await addDoc(collection(db, 'transactions'), {
+                type: 'OUT',
+                itemId: id,
+                itemName: item.description,
+                quantity: -quantity, // Negative for sale
+                costPrice: Number(item.costPrice), // Cost at time of sale
+                salePrice: Number(salePrice), // Sale Price at time of sale
+                totalCost: -quantity * Number(item.costPrice), // Negative value leaving
+                totalSales: quantity * Number(salePrice), // Positive revenue
+                timestamp: new Date().toISOString(),
+                reason: 'Sale / Removal',
+                performedBy: userData?.name || user?.email || 'Unknown'
+            });
+
             setItems(prev => prev.map(i =>
                 i.id === id ? { ...i, quantity: newQuantity } : i
             ));
+            loadTransactions();
 
             showToast(`Stock removed. New quantity: ${newQuantity}`, 'success');
-            logTransaction('REMOVE_STOCK', {
-                itemName: item.name,
-                quantityRemoved: quantity,
-                remainingQuantity: newQuantity
-            });
             return true;
         } catch (err) {
             console.error('Error removing stock:', err);

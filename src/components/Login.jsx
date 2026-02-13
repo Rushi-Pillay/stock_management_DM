@@ -4,10 +4,10 @@ import { useToast } from '../contexts/ToastContext';
 import { Package, Lock, Mail, UserPlus } from 'lucide-react';
 
 export default function Login() {
-    const { login, signup } = useAuth();
+    const { login } = useAuth();
     const { showToast } = useToast();
 
-    const [isLogin, setIsLogin] = useState(true);
+    // const [isLogin, setIsLogin] = useState(true); // Always login now
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
@@ -26,13 +26,8 @@ export default function Login() {
 
         setLoading(true);
         try {
-            if (isLogin) {
-                await login(email, password);
-                showToast('Welcome back!', 'success');
-            } else {
-                await signup(email, password);
-                showToast('Account created successfully!', 'success');
-            }
+            await login(email, password);
+            showToast('Welcome back!', 'success');
         } catch (err) {
             console.error("Auth Error:", err);
             // Firebase error messages are often "Firebase: Error (auth/wrong-password)."
@@ -48,11 +43,11 @@ export default function Login() {
         }
     };
 
-    const toggleMode = () => {
-        setIsLogin(!isLogin);
-        setEmail('');
-        setPassword('');
-    };
+    // const toggleMode = () => {
+    //     setIsLogin(!isLogin);
+    //     setEmail('');
+    //     setPassword('');
+    // };
 
     return (
         <div className="login-overlay active">
@@ -63,9 +58,7 @@ export default function Login() {
                     </div>
                     <h1>Stock Manager</h1>
                     <p>
-                        {isLogin
-                            ? 'Enter your credentials to access inventory'
-                            : 'Create a new account to get started'}
+                        Enter your credentials to access inventory
                     </p>
                 </div>
 
@@ -95,7 +88,7 @@ export default function Login() {
                                 id="password"
                                 placeholder="Enter your password"
                                 required
-                                autoComplete={isLogin ? "current-password" : "new-password"}
+                                autoComplete="current-password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                             />
@@ -109,19 +102,17 @@ export default function Login() {
                     >
                         {loading ? (
                             <>
-                                <span className="spinner">⏳</span> {isLogin ? 'Signing in...' : 'Creating account...'}
+                                <span className="spinner">⏳</span> Signing in...
                             </>
                         ) : (
                             <>
-                                <span className="btn-icon">
-                                    {isLogin ? '🔓' : <UserPlus size={18} />}
-                                </span>
-                                {isLogin ? 'Sign In' : 'Create Account'}
+                                <span className="btn-icon">🔓</span>
+                                Sign In
                             </>
                         )}
                     </button>
 
-                    <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                    {/* <div style={{ marginTop: '1rem', textAlign: 'center' }}>
                         <button
                             type="button"
                             onClick={toggleMode}
@@ -137,6 +128,9 @@ export default function Login() {
                         >
                             {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
                         </button>
+                    </div> */}
+                    <div style={{ marginTop: '1rem', textAlign: 'center', color: '#888', fontSize: '0.85rem' }}>
+                        Contact administrator for account access.
                     </div>
                 </form>
             </div>

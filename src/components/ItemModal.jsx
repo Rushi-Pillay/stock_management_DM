@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, Trash2 } from 'lucide-react';
 
-export default function ItemModal({ isOpen, onClose, onSave, initialData }) {
+export default function ItemModal({ isOpen, onClose, onSave, onDelete, initialData }) {
     const [formData, setFormData] = useState({
         barcode: '',
         stockNumber: '',
@@ -139,9 +139,22 @@ export default function ItemModal({ isOpen, onClose, onSave, initialData }) {
                         />
                     </div>
 
-                    <div className="form-actions">
-                        <button type="button" className="btn btn-secondary cancel-btn" onClick={onClose}>Cancel</button>
-                        <button type="submit" className="btn btn-primary">Save Item</button>
+                    <div className="form-actions" style={{ justifyContent: 'space-between' }}>
+                        {initialData?.id && onDelete && (
+                            <button
+                                type="button"
+                                className="btn btn-danger"
+                                onClick={() => onDelete(initialData.id)}
+                                style={{ backgroundColor: '#ef4444', color: 'white' }}
+                            >
+                                <Trash2 size={18} style={{ marginRight: '5px' }} />
+                                Delete Item
+                            </button>
+                        )}
+                        <div style={{ display: 'flex', gap: '10px', marginLeft: 'auto' }}>
+                            <button type="button" className="btn btn-secondary cancel-btn" onClick={onClose}>Cancel</button>
+                            <button type="submit" className="btn btn-primary">Save Item</button>
+                        </div>
                     </div>
                 </form>
             </div>

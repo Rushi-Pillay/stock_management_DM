@@ -14,12 +14,14 @@
     "html5-qrcode": "^2.3.8",
     "lucide-react": "^0.563.0",
     "react": "^19.2.0",
+    "react-barcode": "^1.6.1",
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-basic-ssl": "^2.1.4",
     "@vitejs/plugin-react": "^5.1.1",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",

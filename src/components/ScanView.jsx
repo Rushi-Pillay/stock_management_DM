@@ -10,15 +10,73 @@ export default function ScanView() {
     const { openDetailModal, openItemModal } = useModal();
     const { showToast } = useToast();
 
-    const [isScanning, setIsScanning] = useState(false);
-    const scannerRef = useRef(null);
+    // const [isScanning, setIsScanning] = useState(false);
+    // const scannerRef = useRef(null);
     const [manualCode, setManualCode] = useState('');
+    const inputRef = useRef(null);
 
-    const handleScanSuccess = (decodedText) => {
-        // Stop scanning on success
-        stopScanner();
-        handleBarcode(decodedText);
-    };
+
+
+    // Focus on mount and when view becomes active
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (inputRef.current) {
+                inputRef.current.focus();
+            }
+        }, 100);
+        return () => clearTimeout(timer);
+    }, []);
+
+    // Global Key Listener for Barcode Scanners (handles input when not focused)
+    useEffect(() => {
+        const handleGlobalKeyDown = (e) => {
+            // Ignore if focus is already on an input (let native behavior work)
+            if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') {
+                return;
+            }
+
+            // Determine action
+            if (e.key === 'Enter') {
+                // We can't easily rely on state in the closure without re-binding listener constantly
+                // But we can focus the input and let the form submit logic handle it?
+                // Actually, if we are building the code in state, we should submit it.
+                // However, standard scanners just type characters and hit Enter.
+                // If we aren't focused, we should capture the characters.
+                // Let's rely on the state updater pattern or a ref for the current code being built invisibly?
+                // Simpler: Just focus the input if they start typing.
+                if (inputRef.current) {
+                    inputRef.current.focus();
+                    // Note: The Enter key might trigger the submit if we focus fast enough? 
+                    // No. But subsequent keys will go to input.
+                }
+                // If we have built up a code in state, submit it
+                if (manualCode) {
+                    handleManualLookup();
+                }
+            } else if (e.key === 'Backspace') {
+                setManualCode(prev => prev.slice(0, -1));
+            } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) {
+                // Capture alphanumeric chars
+                // Note: Standard scanners might send Shift for uppercase, so !e.shiftKey might be too aggressive if barcodes have uppercase.
+                // Let's allow Shift but check char length.
+                setManualCode(prev => prev + e.key);
+
+                // Also ensure input gets focus so user sees what's happening
+                if (inputRef.current) {
+                    inputRef.current.focus();
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleGlobalKeyDown);
+        return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+    }, [manualCode]); // Re-bind when code changes so 'Enter' sees latest 'manualCode'
+
+    // const handleScanSuccess = (decodedText) => {
+    //     // Stop scanning on success
+    //     stopScanner();
+    //     handleBarcode(decodedText);
+    // };
 
     const handleBarcode = (code) => {
         showToast(`Looking up: ${code}`, 'info');
@@ -85,45 +143,40 @@ export default function ScanView() {
         }
     };
 
-    // Cleanup on unmount
-    useEffect(() => {
-        return () => {
-            if (scannerRef.current && isScanning) {
-                scannerRef.current.stop().catch(console.error);
-            }
-        };
-    }, [isScanning]);
+    // Cleanup on unmount - safe to remove if not scanning
+    // useEffect(() => {
+    //     return () => {
+    //         if (scannerRef.current && isScanning) {
+    //             scannerRef.current.stop().catch(console.error);
+    //         }
+    //     };
+    // }, [isScanning]);
 
     const handleManualLookup = () => {
         if (manualCode) {
             handleBarcode(manualCode);
             setManualCode('');
+            // Refocus for next scan
+            setTimeout(() => {
+                if (inputRef.current) {
+                    inputRef.current.focus();
+                }
+            }, 0);
         }
     };
 
     return (
         <section className="view active">
-            <div className="scanner-container">
-                <p className="scanner-hint-text">Point camera at barcode or QR code</p>
-                <div id="scanner-viewport" className="scanner-viewport"></div>
-
-                {!isScanning ? (
-                    <button className="btn btn-primary btn-large" onClick={startScanner}>
-                        <span className="btn-icon"><Camera /></span>
-                        Start Scanner
-                    </button>
-                ) : (
-                    <button className="btn btn-secondary btn-large" onClick={stopScanner}>
-                        <span className="btn-icon"><StopCircle /></span>
-                        Stop Scanner
-                    </button>
-                )}
+            <div className="scanner-container" style={{ display: 'none' }}>
+                <p className="scanner-hint-text">Scanner disabled</p>
+                {/* <div id="scanner-viewport" className="scanner-viewport"></div> */}
             </div>
 
-            <div className="manual-entry">
-                <p>Or enter barcode manually:</p>
+            <div className="manual-entry" style={{ marginTop: '2rem' }}>
+                <p style={{ fontSize: '1.2rem', marginBottom: '1rem', fontWeight: 'bold' }}>Enter barcode / SKU:</p>
                 <div className="input-group">
                     <input
+                        ref={inputRef}
                         type="text"
                         placeholder="Enter barcode number"
                         value={manualCode}

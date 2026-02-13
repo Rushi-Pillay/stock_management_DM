@@ -3,12 +3,13 @@ import { X, Trash2 } from 'lucide-react';
 
 export default function SellModal({ item, isOpen, onClose, onConfirm }) {
     const [quantity, setQuantity] = useState(1);
+    const [salePrice, setSalePrice] = useState(item.sellingPrice || 0);
 
     if (!isOpen || !item) return null;
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        onConfirm(item.id, parseInt(quantity));
+        onConfirm(item.id, parseInt(quantity), parseFloat(salePrice));
         onClose();
     };
 
@@ -38,6 +39,19 @@ export default function SellModal({ item, isOpen, onClose, onConfirm }) {
                             max={item.quantity}
                             value={quantity}
                             onChange={(e) => setQuantity(e.target.value)}
+                        />
+                    </div>
+
+                    <div className="form-group">
+                        <label htmlFor="sell-price">Sale Price (Per Unit) *</label>
+                        <input
+                            type="number"
+                            id="sell-price"
+                            required
+                            min="0"
+                            step="0.01"
+                            value={salePrice}
+                            onChange={(e) => setSalePrice(e.target.value)}
                         />
                     </div>
 

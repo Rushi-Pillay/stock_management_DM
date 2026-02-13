@@ -20,10 +20,7 @@ export default function InventoryView() {
         <section className="view active">
             <div className="inventory-header">
                 <h2>Full Inventory</h2>
-                <button className="btn btn-accent" onClick={() => openItemModal(null)}>
-                    <span className="btn-icon">➕</span>
-                    Add Item
-                </button>
+                {/* Add Item button removed as per request */}
             </div>
 
             <div className="inventory-list">
@@ -31,9 +28,6 @@ export default function InventoryView() {
                     <div className="empty-state">
                         <div className="empty-state-icon">📦</div>
                         <p className="empty-state-text">No items in inventory yet</p>
-                        <button className="btn btn-accent add-new-from-empty" onClick={() => openItemModal(null)}>
-                            ➕ Add New Item
-                        </button>
                     </div>
                 ) : (
                     sortedItems.map(item => (
