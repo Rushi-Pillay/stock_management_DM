@@ -1,105 +1,87 @@
-import { X, Edit, ShoppingCart, Printer } from 'lucide-react';
+import { X, Edit, ShoppingCart, Printer, Settings } from 'lucide-react';
 import { formatCurrency, getStockClass } from '../utils/format';
 import Barcode from 'react-barcode';
-import { useRef } from 'react';
+import { useRef, useState, useEffect } from 'react';
+import html2canvas from 'html2canvas';
+import { useToast } from '../contexts/ToastContext';
 
 export default function ItemDetailModal({ item, isOpen, onClose, onEdit, onSell }) {
+    const { showToast } = useToast();
+    const [printerIp, setPrinterIp] = useState('');
+    const [showPrinterConfig, setShowPrinterConfig] = useState(false);
+    const [isPrinting, setIsPrinting] = useState(false);
+    const printRef = useRef(null);
+
+    useEffect(() => {
+        const savedIp = localStorage.getItem('printer_ip');
+        if (savedIp) setPrinterIp(savedIp);
+    }, []);
+
+    const savePrinterIp = (ip) => {
+        setPrinterIp(ip);
+        localStorage.setItem('printer_ip', ip);
+    };
+
     if (!isOpen || !item) return null;
 
     const stockClass = getStockClass(item.quantity);
 
-    const handlePrint = () => {
-        const printWindow = window.open('', '', 'width=600,height=600');
-        if (!printWindow) return;
+    const handleNetworkPrint = async () => {
+        if (!printerIp) {
+            setShowPrinterConfig(true);
+            showToast('Please set Printer IP first', 'warning');
+            return;
+        }
 
-        const htmlContent = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Print Label</title>
-                <style>
-                    body {
-                        margin: 0;
-                        padding: 0;
-                        display: flex;
-                        justify-content: center;
-                        align-items: center;
-                        height: 100vh;
-                        font-family: sans-serif;
-                    }
-                    .label-container {
-                        width: 300px; /* Adjust based on label size, e.g. 62mm is approx 234px at 96dpi, but browsers scale */
-                        text-align: center;
-                        padding: 10px;
-                        border: 1px dashed #ccc; /* Visible on screen only */
-                    }
-                    @media print {
-                        .label-container {
-                            border: none;
-                            width: 100%;
-                            padding: 0;
-                        }
-                        @page {
-                            margin: 0;
-                            size: auto;
-                        }
-                    }
-                    .org-name { font-weight: bold; font-size: 14px; margin-bottom: 5px; }
-                    .item-name { font-size: 16px; margin-bottom: 5px; font-weight: bold; }
-                    .price { font-size: 18px; font-weight: bold; margin-bottom: 5px; }
-                    .meta { font-size: 10px; color: #555; }
-                </style>
-            </head>
-            <body>
-                <div class="label-container">
-                    <div class="org-name">Dismantled Motors</div>
-                    <div class="item-name">${item.description}</div>
-                    <div class="meta">${item.stockNumber}</div>
-                    <div class="price">${formatCurrency(item.sellingPrice)}</div>
-                    <div id="barcode-container"></div>
-                </div>
-                <script>
-                    window.onload = function() {
-                        window.print();
-                        // window.close(); // Optional: close after print
-                    }
-                </script>
-            </body>
-            </html>
-        `;
+        setIsPrinting(true);
+        try {
+            // Short delay to ensure ref is ready if hidden
+            await new Promise(resolve => setTimeout(resolve, 100));
 
-        printWindow.document.write(htmlContent);
-        printWindow.document.close();
+            if (!printRef.current) {
+                throw new Error("Print element not found");
+            }
 
-        // We need to render the barcode into the new window. 
-        // Since react-barcode is a React component, we can't just stringify it easily into valid SVG HTML string without rendering.
-        // A simple trick is to generate it here hidden, or just use a pure JS barcode lib.
-        // But since we installed react-barcode, let's try to grab the SVG from a hidden ref if possible, or just let the print window handle it if we used a JS lib.
-        // Actually, simplest way with React is to use ReactDOMServer to render static markup, but that adds backend complexity or bloated imports.
-        // Alternative: Use JsBarcode via CDN in the print window.
+            const canvas = await html2canvas(printRef.current, {
+                scale: 3, // Higher scale for 300dpi printers like QL-810W
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff'
+            });
 
-        // Let's inject JsBarcode script into the print window
-        const script = printWindow.document.createElement('script');
-        script.src = "https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js";
-        script.onload = () => {
-            const script2 = printWindow.document.createElement('script');
-            script2.textContent = `
-                JsBarcode("#barcode-container", "${item.barcode || item.stockNumber}", {
-                    format: "CODE128",
-                    width: 2,
-                    height: 50,
-                    displayValue: true
-                });
-             `;
-            printWindow.document.body.appendChild(script2);
-        };
-        printWindow.document.head.appendChild(script);
+            const base64Image = canvas.toDataURL('image/png');
 
-        // Change the internal element from div to svg for JsBarcode
-        const barcodeDiv = printWindow.document.getElementById('barcode-container');
-        const svg = printWindow.document.createElementNS("http://www.w3.org/2000/svg", "svg");
-        svg.id = "barcode-container";
-        barcodeDiv.replaceWith(svg);
+            showToast('Sending to printer...', 'info');
+
+            const response = await fetch('http://localhost:3001/print', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    ip: printerIp,
+                    image: base64Image
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Print failed');
+            }
+
+            const result = await response.json();
+            if (result.success) {
+                showToast('Label printed successfully!', 'success');
+            } else {
+                throw new Error(result.error || 'Unknown error');
+            }
+
+        } catch (err) {
+            console.error('Print error:', err);
+            showToast(`Print Error: ${err.message}. Is the bridge server running?`, 'error');
+        } finally {
+            setIsPrinting(false);
+        }
     };
 
     return (
@@ -117,7 +99,6 @@ export default function ItemDetailModal({ item, isOpen, onClose, onEdit, onSell 
                         <span className="detail-label">Barcode</span>
                         <div style={{ textAlign: 'right' }}>
                             <span className="detail-value">{item.barcode || 'N/A'}</span>
-                            {/* Visual barcode preview */}
                             {(item.barcode || item.stockNumber) && (
                                 <div style={{ marginTop: '5px' }}>
                                     <Barcode
@@ -158,6 +139,33 @@ export default function ItemDetailModal({ item, isOpen, onClose, onEdit, onSell 
                             {item.quantity}
                         </span>
                     </div>
+
+                    {showPrinterConfig && (
+                        <div className="printer-config" style={{
+                            marginTop: '1rem',
+                            padding: '1rem',
+                            background: '#f3f4f6',
+                            borderRadius: '8px',
+                            border: '1px solid #e5e7eb'
+                        }}>
+                            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                                Brother QL-810W IP Address:
+                            </label>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <input
+                                    type="text"
+                                    placeholder="e.g. 192.168.1.50"
+                                    value={printerIp}
+                                    onChange={(e) => savePrinterIp(e.target.value)}
+                                    style={{ flex: 1, padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }}
+                                />
+                                <button className="btn btn-secondary" onClick={() => setShowPrinterConfig(false)}>Save</button>
+                            </div>
+                            <p style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.5rem' }}>
+                                Note: The bridge server must be running on this PC.
+                            </p>
+                        </div>
+                    )}
                 </div>
 
                 <div className="detail-actions">
@@ -165,14 +173,57 @@ export default function ItemDetailModal({ item, isOpen, onClose, onEdit, onSell 
                         <Edit className="btn-icon" size={18} />
                         Edit
                     </button>
-                    <button className="btn btn-secondary" onClick={handlePrint} title="Print Label" style={{ backgroundColor: '#6b7280', color: 'white' }}>
-                        <Printer className="btn-icon" size={18} />
-                        Print
-                    </button>
+
+                    <div style={{ display: 'flex', gap: '2px' }}>
+                        <button
+                            className="btn btn-secondary"
+                            onClick={handleNetworkPrint}
+                            disabled={isPrinting}
+                            style={{ backgroundColor: '#4b5563', color: 'white' }}
+                        >
+                            <Printer className="btn-icon" size={18} />
+                            {isPrinting ? 'Printing...' : 'Direct Print'}
+                        </button>
+                        <button
+                            className="btn btn-secondary"
+                            onClick={() => setShowPrinterConfig(!showPrinterConfig)}
+                            style={{ padding: '0 8px' }}
+                        >
+                            <Settings size={18} />
+                        </button>
+                    </div>
+
                     <button className="btn btn-primary" onClick={() => onSell(item)}>
                         <ShoppingCart className="btn-icon" size={18} />
                         Sell
                     </button>
+                </div>
+
+                {/* Hidden Template for Brother QL-810W (optimized for 62mm roll) */}
+                <div style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
+                    <div ref={printRef} style={{
+                        width: '240px', // Standard 62mm width at screen resolution
+                        padding: '15px',
+                        background: 'white',
+                        color: 'black',
+                        textAlign: 'center',
+                        fontFamily: 'sans-serif'
+                    }}>
+                        <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '4px' }}>Dismantled Motors</div>
+                        <div style={{ fontSize: '12px', marginBottom: '2px' }}>{item.stockNumber}</div>
+                        <div style={{ fontSize: '16px', fontWeight: 'bold', margin: '4px 0' }}>{item.description}</div>
+                        <div style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '8px' }}>{formatCurrency(item.sellingPrice)}</div>
+                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                            <Barcode
+                                value={item.barcode || item.stockNumber}
+                                width={1.8}
+                                height={50}
+                                fontSize={12}
+                                displayValue={true}
+                                background="#ffffff"
+                            />
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

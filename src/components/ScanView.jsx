@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { useInventory } from '../contexts/InventoryContext';
 import { useModal } from '../contexts/ModalContext';
 import { useToast } from '../contexts/ToastContext';
@@ -10,12 +10,10 @@ export default function ScanView() {
     const { openDetailModal, openItemModal } = useModal();
     const { showToast } = useToast();
 
-    // const [isScanning, setIsScanning] = useState(false);
-    // const scannerRef = useRef(null);
+    const [isScanning, setIsScanning] = useState(false);
+    const scannerRef = useRef(null);
     const [manualCode, setManualCode] = useState('');
     const inputRef = useRef(null);
-
-
 
     // Focus on mount and when view becomes active
     useEffect(() => {
@@ -37,17 +35,8 @@ export default function ScanView() {
 
             // Determine action
             if (e.key === 'Enter') {
-                // We can't easily rely on state in the closure without re-binding listener constantly
-                // But we can focus the input and let the form submit logic handle it?
-                // Actually, if we are building the code in state, we should submit it.
-                // However, standard scanners just type characters and hit Enter.
-                // If we aren't focused, we should capture the characters.
-                // Let's rely on the state updater pattern or a ref for the current code being built invisibly?
-                // Simpler: Just focus the input if they start typing.
                 if (inputRef.current) {
                     inputRef.current.focus();
-                    // Note: The Enter key might trigger the submit if we focus fast enough? 
-                    // No. But subsequent keys will go to input.
                 }
                 // If we have built up a code in state, submit it
                 if (manualCode) {
@@ -56,9 +45,6 @@ export default function ScanView() {
             } else if (e.key === 'Backspace') {
                 setManualCode(prev => prev.slice(0, -1));
             } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) {
-                // Capture alphanumeric chars
-                // Note: Standard scanners might send Shift for uppercase, so !e.shiftKey might be too aggressive if barcodes have uppercase.
-                // Let's allow Shift but check char length.
                 setManualCode(prev => prev + e.key);
 
                 // Also ensure input gets focus so user sees what's happening
@@ -70,16 +56,22 @@ export default function ScanView() {
 
         window.addEventListener('keydown', handleGlobalKeyDown);
         return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-    }, [manualCode]); // Re-bind when code changes so 'Enter' sees latest 'manualCode'
+    }, [manualCode]);
 
-    // const handleScanSuccess = (decodedText) => {
-    //     // Stop scanning on success
-    //     stopScanner();
-    //     handleBarcode(decodedText);
-    // };
+    const handleScanSuccess = (decodedText) => {
+        // Play a beep or success feedback if possible (optional)
+
+        // Update input
+        setManualCode(decodedText);
+
+        // Stop scanning automatically to allow user to verify/edit or just submit
+        stopScanner();
+
+        showToast('Code scanned successfully', 'success');
+    };
 
     const handleBarcode = (code) => {
-        showToast(`Looking up: ${code}`, 'info');
+        showToast(`Looking up: ${code} `, 'info');
 
         // 1. Exact match
         const exactMatch = items.find(item => item.barcode === code);
@@ -98,9 +90,7 @@ export default function ScanView() {
         if (searchMatches.length === 1) {
             openDetailModal(searchMatches[0]);
         } else if (searchMatches.length > 1) {
-            // If multiple matches, we might want to show a list or just pick first
-            // For now, let's just show details of first, or maybe alert user
-            showToast(`Found ${searchMatches.length} matches. Showing first.`, 'success');
+            showToast(`Found ${searchMatches.length} matches.Showing first.`, 'success');
             openDetailModal(searchMatches[0]);
         } else {
             showToast('Item not found', 'warning');
@@ -111,46 +101,82 @@ export default function ScanView() {
 
     const startScanner = async () => {
         try {
+            // Debug checks
+            if (!window.isSecureContext) {
+                showToast('Camera requires a secure context (HTTPS or localhost)', 'error');
+                return;
+            }
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                showToast('Camera API not present. Are you on HTTPS?', 'error');
+                return;
+            }
+
+            // Ensure element exists
+            if (!document.getElementById("scanner-viewport")) {
+                console.error("Scanner element not found");
+                showToast('Scanner display element missing', 'error');
+                return;
+            }
+
+            // Optimize for QR Code only
             const scanner = new Html5Qrcode("scanner-viewport");
             scannerRef.current = scanner;
 
+            // Optional: Request permission explicitly first to trigger the browser prompt immediately
+            try {
+                await navigator.mediaDevices.getUserMedia({ video: true });
+            } catch (permErr) {
+                showToast(`Permission denied: ${permErr.message} `, 'error');
+                return;
+            }
+
+            const config = {
+                fps: 15, // Increased FPS for faster feel
+                qrbox: { width: 250, height: 250 },
+                aspectRatio: 1.0,
+                formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE]
+            };
+
             await scanner.start(
                 { facingMode: "environment" },
-                { fps: 10, qrbox: { width: 250, height: 250 } },
+                config,
                 handleScanSuccess,
                 (errorMessage) => {
-                    // ignore errors
+                    // minor scanning errors, ignore
                 }
             );
 
             setIsScanning(true);
-            showToast('Scanner active', 'success');
+            showToast('Scanner active (QR Only)', 'success');
         } catch (err) {
             console.error('Scanner error:', err);
-            showToast('Camera access failed', 'error');
+            showToast(`Start failed: ${err.message || err} `, 'error');
         }
     };
 
     const stopScanner = async () => {
-        if (scannerRef.current && isScanning) {
+        if (scannerRef.current) {
             try {
-                await scannerRef.current.stop();
+                if (scannerRef.current.isScanning) {
+                    await scannerRef.current.stop();
+                }
                 scannerRef.current.clear();
                 setIsScanning(false);
             } catch (err) {
                 console.error('Stop scanner error:', err);
+                setIsScanning(false);
             }
         }
     };
 
-    // Cleanup on unmount - safe to remove if not scanning
-    // useEffect(() => {
-    //     return () => {
-    //         if (scannerRef.current && isScanning) {
-    //             scannerRef.current.stop().catch(console.error);
-    //         }
-    //     };
-    // }, [isScanning]);
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (scannerRef.current && scannerRef.current.isScanning) {
+                scannerRef.current.stop().catch(console.error);
+            }
+        };
+    }, []);
 
     const handleManualLookup = () => {
         if (manualCode) {
@@ -167,9 +193,29 @@ export default function ScanView() {
 
     return (
         <section className="view active">
-            <div className="scanner-container" style={{ display: 'none' }}>
-                <p className="scanner-hint-text">Scanner disabled</p>
-                {/* <div id="scanner-viewport" className="scanner-viewport"></div> */}
+            <div className="scanner-container">
+                <div id="scanner-viewport" className="scanner-viewport" style={{ width: '100%', maxWidth: '500px', margin: '0 auto', display: isScanning ? 'block' : 'none' }}></div>
+
+                {!isScanning && (
+                    <div className="scanner-placeholder" style={{ textAlign: 'center', padding: '2rem', border: '2px dashed #ccc', borderRadius: '8px', marginBottom: '1rem' }}>
+                        <Camera size={48} color="#ccc" />
+                        <p>Camera is off</p>
+                    </div>
+                )}
+
+                <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+                    {!isScanning ? (
+                        <button className="btn btn-primary" onClick={startScanner}>
+                            <Camera size={20} style={{ marginRight: '8px' }} />
+                            Start Camera
+                        </button>
+                    ) : (
+                        <button className="btn btn-danger" onClick={stopScanner}>
+                            <StopCircle size={20} style={{ marginRight: '8px' }} />
+                            Stop Camera
+                        </button>
+                    )}
+                </div>
             </div>
 
             <div className="manual-entry" style={{ marginTop: '2rem' }}>
