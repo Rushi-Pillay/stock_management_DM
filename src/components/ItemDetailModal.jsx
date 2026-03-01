@@ -134,6 +134,80 @@ export default function ItemDetailModal({ item, isOpen, onClose, onEdit, onSell 
         }
     };
 
+    const handleBrowserPrint = () => {
+        const barcodeValue = item.barcode || item.stockNumber;
+        const printWindow = window.open('', '_blank', 'width=400,height=600');
+        if (!printWindow) {
+            showToast('Popup blocked! Please allow popups for this site.', 'error');
+            return;
+        }
+
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Print Label - ${item.stockNumber}</title>
+                <style>
+                    @page {
+                        margin: 0;
+                        size: auto;
+                    }
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    body {
+                        display: flex;
+                        justify-content: center;
+                        align-items: flex-start;
+                        padding: 2mm;
+                        font-family: Arial, Helvetica, sans-serif;
+                        background: white;
+                        color: black;
+                    }
+                    .label {
+                        width: ${templateWidth}px;
+                        ${selectedLabel.heightPx > 0 ? `height: ${selectedLabel.heightPx}px;` : ''}
+                        padding: ${templateWidth > 100 ? '15px' : '8px'};
+                        text-align: center;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: center;
+                        align-items: center;
+                    }
+                    .title { font-size: ${titleSize}; font-weight: bold; margin-bottom: 2px; }
+                    .stock-num { font-size: ${stockNumSize}; margin-bottom: 1px; }
+                    .desc { font-size: ${descSize}; font-weight: bold; margin: 3px 0; }
+                    .price { font-size: ${priceSize}; font-weight: bold; margin-bottom: 4px; }
+                    .barcode-img { max-width: 100%; }
+                </style>
+            </head>
+            <body>
+                <div class="label">
+                    <div class="title">Dismantled Motors</div>
+                    <div class="stock-num">${item.stockNumber}</div>
+                    <div class="desc">${item.description}</div>
+                    <div class="price">${formatCurrency(item.sellingPrice)}</div>
+                    <img class="barcode-img" id="barcode-img" />
+                </div>
+                <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"><\/script>
+                <script>
+                    JsBarcode("#barcode-img", "${barcodeValue}", {
+                        width: ${barcodeWidth},
+                        height: ${barcodeHeight},
+                        fontSize: ${isSmallLabel ? 8 : 12},
+                        displayValue: true,
+                        background: "#ffffff",
+                        margin: 0
+                    });
+                    setTimeout(() => {
+                        window.print();
+                        window.close();
+                    }, 500);
+                <\/script>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+    };
+
     return (
         <div className="modal active">
             <div className="modal-content">
@@ -252,12 +326,19 @@ export default function ItemDetailModal({ item, isOpen, onClose, onEdit, onSell 
                     <div style={{ display: 'flex', gap: '2px' }}>
                         <button
                             className="btn btn-secondary"
-                            onClick={handleNetworkPrint}
-                            disabled={isPrinting}
-                            style={{ backgroundColor: '#4b5563', color: 'white' }}
+                            onClick={handleBrowserPrint}
+                            style={{ backgroundColor: '#2563eb', color: 'white' }}
                         >
                             <Printer className="btn-icon" size={18} />
-                            {isPrinting ? 'Printing...' : 'Direct Print'}
+                            Print Label
+                        </button>
+                        <button
+                            className="btn btn-secondary"
+                            onClick={handleNetworkPrint}
+                            disabled={isPrinting}
+                            style={{ backgroundColor: '#4b5563', color: 'white', fontSize: '0.75rem' }}
+                        >
+                            {isPrinting ? 'Printing...' : 'Direct'}
                         </button>
                         <button
                             className="btn btn-secondary"
