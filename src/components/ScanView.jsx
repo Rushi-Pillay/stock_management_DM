@@ -4,6 +4,7 @@ import { useInventory } from '../contexts/InventoryContext';
 import { useModal } from '../contexts/ModalContext';
 import { useToast } from '../contexts/ToastContext';
 import { Camera, StopCircle } from 'lucide-react';
+import ItemCard from './ItemCard';
 
 export default function ScanView() {
     const { items } = useInventory();
@@ -13,6 +14,7 @@ export default function ScanView() {
     const [isScanning, setIsScanning] = useState(false);
     const scannerRef = useRef(null);
     const [manualCode, setManualCode] = useState('');
+    const [searchResults, setSearchResults] = useState([]);
     const inputRef = useRef(null);
 
     // Focus on mount and when view becomes active
@@ -76,6 +78,7 @@ export default function ScanView() {
         // 1. Exact match
         const exactMatch = items.find(item => item.barcode === code);
         if (exactMatch) {
+            setSearchResults([]);
             openDetailModal(exactMatch);
             return;
         }
@@ -88,11 +91,13 @@ export default function ScanView() {
         );
 
         if (searchMatches.length === 1) {
+            setSearchResults([]);
             openDetailModal(searchMatches[0]);
         } else if (searchMatches.length > 1) {
-            showToast(`Found ${searchMatches.length} matches.Showing first.`, 'success');
-            openDetailModal(searchMatches[0]);
+            showToast(`Found ${searchMatches.length} matches. Please select one.`, 'success');
+            setSearchResults(searchMatches);
         } else {
+            setSearchResults([]);
             showToast('Item not found', 'warning');
             // Pre-fill modal with scanned code
             openItemModal({ barcode: code });
@@ -231,6 +236,19 @@ export default function ScanView() {
                     />
                     <button className="btn btn-accent" onClick={handleManualLookup}>Look Up</button>
                 </div>
+
+                {searchResults.length > 0 && (
+                    <div className="results-container" style={{ marginTop: '2rem' }}>
+                        <p style={{ marginBottom: '1rem', fontWeight: 'bold' }}>Multiple matches found. Select an item:</p>
+                        {searchResults.map(item => (
+                            <ItemCard
+                                key={item.id}
+                                item={item}
+                                onClick={openDetailModal}
+                            />
+                        ))}
+                    </div>
+                )}
             </div>
         </section>
     );
