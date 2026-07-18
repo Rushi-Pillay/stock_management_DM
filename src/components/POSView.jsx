@@ -5,15 +5,34 @@ import { formatCurrency } from '../utils/format';
 import { Plus, Trash2, ShoppingCart } from 'lucide-react';
 import ItemCard from './ItemCard';
 
+// Persist the in-progress cart across view switches (and page reloads) so
+// leaving the POS screen mid-sale doesn't lose the cashier's work.
+const CART_STORAGE_KEY = 'pos_cart_state';
+
+function loadPersistedCart() {
+    try {
+        const raw = localStorage.getItem(CART_STORAGE_KEY);
+        if (!raw) return null;
+        return JSON.parse(raw);
+    } catch {
+        return null;
+    }
+}
+
 export default function POSView({ isDesktop }) {
     const { items, checkoutSale } = useInventory();
     const { showToast } = useToast();
 
     const [code, setCode] = useState('');
     const [searchResults, setSearchResults] = useState([]);
-    const [cart, setCart] = useState([]);
+    const [cart, setCart] = useState(() => loadPersistedCart()?.cart || []);
+    const [discount, setDiscount] = useState(() => loadPersistedCart()?.discount || 0);
     const [isCheckingOut, setIsCheckingOut] = useState(false);
     const inputRef = useRef(null);
+
+    useEffect(() => {
+        localStorage.setItem(CART_STORAGE_KEY, JSON.stringify({ cart, discount }));
+    }, [cart, discount]);
 
     // Auto-focus the scan input on desktop (a physical scanner types + Enters here).
     // Skip on mobile so we don't pop the on-screen keyboard unexpectedly.
@@ -129,10 +148,17 @@ export default function POSView({ isDesktop }) {
     };
 
     const handleClearCart = () => {
-        if (cart.length === 0) return;
+        if (cart.length === 0 && discount === 0) return;
         if (window.confirm('Clear all items from the cart?')) {
             setCart([]);
+            setDiscount(0);
         }
+    };
+
+    const updateDiscount = (rawValue) => {
+        let val = parseFloat(rawValue);
+        if (isNaN(val) || val < 0) val = 0;
+        setDiscount(val);
     };
 
     const handleCheckout = async () => {
@@ -143,17 +169,24 @@ export default function POSView({ isDesktop }) {
 
         setIsCheckingOut(true);
         try {
+            // A discount is taken off the subtotal as a flat amount. To keep
+            // each line's logged sale price meaningful for profit tracking,
+            // scale every line down by the same ratio so the logged total
+            // still matches what was actually charged.
+            const scale = subtotal > 0 ? total / subtotal : 1;
+
             const cartItems = cart.map(line => ({
                 id: line.id,
                 itemName: line.description,
                 quantity: line.quantity,
-                unitPrice: line.unitPrice,
+                unitPrice: Math.round(line.unitPrice * scale * 100) / 100,
                 costPrice: line.costPrice
             }));
 
             const success = await checkoutSale(cartItems);
             if (success) {
                 setCart([]);
+                setDiscount(0);
             }
             // On failure, checkoutSale already shows its own error toast; leave cart untouched.
         } finally {
@@ -163,6 +196,7 @@ export default function POSView({ isDesktop }) {
 
     const subtotal = cart.reduce((sum, line) => sum + (line.quantity * line.unitPrice), 0);
     const totalItems = cart.reduce((sum, line) => sum + line.quantity, 0);
+    const total = Math.max(0, subtotal - (Number(discount) || 0));
 
     return (
         <section className="view active pos-view">
@@ -335,9 +369,25 @@ export default function POSView({ isDesktop }) {
                         <span>Items</span>
                         <span>{totalItems}</span>
                     </div>
-                    <div className="pos-summary-row pos-summary-total">
+                    <div className="pos-summary-row">
                         <span>Subtotal</span>
                         <span>{formatCurrency(subtotal)}</span>
+                    </div>
+                    <div className="pos-summary-row pos-discount-row">
+                        <label htmlFor="pos-discount">Discount</label>
+                        <input
+                            type="number"
+                            id="pos-discount"
+                            min="0"
+                            step="0.01"
+                            value={discount}
+                            onChange={(e) => updateDiscount(e.target.value)}
+                            className="pos-discount-input"
+                        />
+                    </div>
+                    <div className="pos-summary-row pos-summary-total">
+                        <span>Total</span>
+                        <span>{formatCurrency(total)}</span>
                     </div>
                 </div>
                 <div className="pos-footer-actions">
@@ -521,6 +571,14 @@ export default function POSView({ isDesktop }) {
                     font-size: 1.1rem;
                     font-weight: 700;
                     color: var(--text-primary);
+                }
+                .pos-discount-row {
+                    align-items: center;
+                }
+                .pos-discount-input {
+                    width: 90px;
+                    padding: 4px 8px;
+                    text-align: right;
                 }
                 .pos-footer-actions {
                     display: flex;

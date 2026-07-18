@@ -1,9 +1,13 @@
+import { useState } from 'react';
 import { useInventory } from '../contexts/InventoryContext';
 import { formatCurrency } from '../utils/format';
 import { RefreshCw } from 'lucide-react';
 
+const PAGE_SIZE = 20;
+
 export default function TransactionsView() {
     const { transactions, loadTransactions } = useInventory();
+    const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
     const formatDate = (dateString) => {
         try {
@@ -12,6 +16,9 @@ export default function TransactionsView() {
             return dateString;
         }
     };
+
+    const visibleTransactions = transactions.slice(0, visibleCount);
+    const remaining = transactions.length - visibleTransactions.length;
 
     return (
         <section className="view active">
@@ -47,7 +54,7 @@ export default function TransactionsView() {
                                 </td>
                             </tr>
                         ) : (
-                            transactions.map(t => (
+                            visibleTransactions.map(t => (
                                 <tr key={t.id} className={(t.type === 'OUT' || t.type === 'DELETE') ? 'row-out' : 'row-in'}>
                                     <td>{formatDate(t.timestamp)}</td>
                                     <td>
@@ -77,6 +84,17 @@ export default function TransactionsView() {
                     </tbody>
                 </table>
             </div>
+
+            {remaining > 0 && (
+                <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
+                    <button
+                        className="btn btn-secondary"
+                        onClick={() => setVisibleCount(prev => prev + PAGE_SIZE)}
+                    >
+                        Load More ({remaining} remaining)
+                    </button>
+                </div>
+            )}
 
             <style>{`
                 .table-responsive {
