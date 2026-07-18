@@ -69,7 +69,7 @@ export default function StockIntakeView({ isDesktop }) {
                 id: item.id,
                 description: item.description,
                 stockNumber: item.stockNumber,
-                currentStock: item.quantity,
+                currentStock: Number(item.quantity) || 0,
                 quantity: 1,
                 costPrice: Number(item.costPrice) || 0
             }]);
@@ -395,7 +395,7 @@ export default function StockIntakeView({ isDesktop }) {
                                 </div>
 
                                 <div className="intake-card-total">
-                                    New stock level: <strong>{line.currentStock + line.quantity}</strong>
+                                    New stock level: <strong>{Number(line.currentStock) + Number(line.quantity)}</strong>
                                     <span className="intake-line-cost">{formatCurrency(line.quantity * line.costPrice)}</span>
                                 </div>
                             </div>
@@ -496,8 +496,8 @@ export default function StockIntakeView({ isDesktop }) {
                     margin-bottom: 1.5rem;
                 }
                 .intake-cart-cards {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+                    display: flex;
+                    flex-direction: column;
                     gap: 1rem;
                 }
                 .intake-card {
@@ -646,9 +646,6 @@ export default function StockIntakeView({ isDesktop }) {
                 @media (max-width: 768px) {
                     .intake-scan-row {
                         flex-direction: column;
-                    }
-                    .intake-cart-cards {
-                        grid-template-columns: 1fr;
                     }
                     .intake-footer {
                         flex-direction: column;

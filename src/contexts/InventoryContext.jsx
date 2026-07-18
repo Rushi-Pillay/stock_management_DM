@@ -82,6 +82,12 @@ export function InventoryProvider({ children }) {
         try {
             const newItem = {
                 ...itemData,
+                // Form inputs hand these back as strings even for type="number";
+                // store them as real numbers so downstream math (e.g. new stock
+                // level previews) adds instead of concatenating.
+                quantity: Number(itemData.quantity) || 0,
+                costPrice: Number(itemData.costPrice) || 0,
+                sellingPrice: Number(itemData.sellingPrice) || 0,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
             };
@@ -122,6 +128,10 @@ export function InventoryProvider({ children }) {
 
             const updateData = {
                 ...data,
+                // Same string-vs-number fix as addItem - form inputs are strings.
+                quantity: Number(data.quantity) || 0,
+                costPrice: Number(data.costPrice) || 0,
+                sellingPrice: Number(data.sellingPrice) || 0,
                 updatedAt: new Date().toISOString()
             };
 
