@@ -3,14 +3,27 @@ import { useInventory } from '../contexts/InventoryContext';
 import { formatCurrency } from '../utils/format';
 import { RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
 
-export default function SalesView({ isDesktop }) {
+const toDateInputValue = (date) => {
+    // Local calendar date (not UTC) so "Today" matches what the clock on the
+    // wall says, even though transaction timestamps are stored as UTC ISO strings.
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+const todayStr = toDateInputValue(new Date());
+
+export default function SalesView() {
     const { transactions, loadTransactions } = useInventory();
     const [expandedIds, setExpandedIds] = useState(new Set());
+    const [dateFrom, setDateFrom] = useState(todayStr);
+    const [dateTo, setDateTo] = useState(todayStr);
 
     const formatDate = (dateString) => {
         try {
             return new Date(dateString).toLocaleString();
-        } catch (e) {
+        } catch {
             return dateString;
         }
     };
@@ -58,7 +71,48 @@ export default function SalesView({ isDesktop }) {
         });
     }, [transactions]);
 
-    const totalRevenue = saleGroups.reduce((sum, g) => sum + g.totalSales, 0);
+    const filteredGroups = useMemo(() => {
+        if (!dateFrom && !dateTo) return saleGroups;
+        return saleGroups.filter(g => {
+            if (!g.timestamp) return true;
+            const groupDate = toDateInputValue(new Date(g.timestamp));
+            if (dateFrom && groupDate < dateFrom) return false;
+            if (dateTo && groupDate > dateTo) return false;
+            return true;
+        });
+    }, [saleGroups, dateFrom, dateTo]);
+
+    const totalRevenue = filteredGroups.reduce((sum, g) => sum + g.totalSales, 0);
+    const totalCostSum = filteredGroups.reduce((sum, g) => sum + g.totalCost, 0);
+    const totalProfit = filteredGroups.reduce((sum, g) => sum + g.profit, 0);
+
+    const yesterdayStr = useMemo(() => {
+        const y = new Date();
+        y.setDate(y.getDate() - 1);
+        return toDateInputValue(y);
+    }, []);
+
+    const weekStartStr = useMemo(() => {
+        const now = new Date();
+        const day = now.getDay(); // 0 = Sunday
+        const diffToMonday = day === 0 ? 6 : day - 1;
+        const monday = new Date(now);
+        monday.setDate(now.getDate() - diffToMonday);
+        return toDateInputValue(monday);
+    }, []);
+
+    const monthStartStr = useMemo(() => {
+        const now = new Date();
+        return toDateInputValue(new Date(now.getFullYear(), now.getMonth(), 1));
+    }, []);
+
+    const applyPreset = (from, to) => {
+        setDateFrom(from);
+        setDateTo(to);
+    };
+
+    const isPresetActive = (from, to) => dateFrom === from && dateTo === to;
+    const isAllTimeActive = !dateFrom && !dateTo;
 
     return (
         <section className="view active">
@@ -70,14 +124,73 @@ export default function SalesView({ isDesktop }) {
                 </button>
             </div>
 
+            <div className="sales-filter-bar">
+                <div className="sales-filter-presets">
+                    <button
+                        className={`preset-btn ${isPresetActive(todayStr, todayStr) ? 'active' : ''}`}
+                        onClick={() => applyPreset(todayStr, todayStr)}
+                    >
+                        Today
+                    </button>
+                    <button
+                        className={`preset-btn ${isPresetActive(yesterdayStr, yesterdayStr) ? 'active' : ''}`}
+                        onClick={() => applyPreset(yesterdayStr, yesterdayStr)}
+                    >
+                        Yesterday
+                    </button>
+                    <button
+                        className={`preset-btn ${isPresetActive(weekStartStr, todayStr) ? 'active' : ''}`}
+                        onClick={() => applyPreset(weekStartStr, todayStr)}
+                    >
+                        This Week
+                    </button>
+                    <button
+                        className={`preset-btn ${isPresetActive(monthStartStr, todayStr) ? 'active' : ''}`}
+                        onClick={() => applyPreset(monthStartStr, todayStr)}
+                    >
+                        This Month
+                    </button>
+                    <button
+                        className={`preset-btn ${isAllTimeActive ? 'active' : ''}`}
+                        onClick={() => applyPreset('', '')}
+                    >
+                        All Time
+                    </button>
+                </div>
+                <div className="sales-filter-range">
+                    <label htmlFor="sales-date-from">From</label>
+                    <input
+                        type="date"
+                        id="sales-date-from"
+                        value={dateFrom}
+                        onChange={(e) => setDateFrom(e.target.value)}
+                    />
+                    <label htmlFor="sales-date-to">To</label>
+                    <input
+                        type="date"
+                        id="sales-date-to"
+                        value={dateTo}
+                        onChange={(e) => setDateTo(e.target.value)}
+                    />
+                </div>
+            </div>
+
             <div className="sales-summary-strip">
                 <div className="summary-stat">
-                    <span className="summary-label">Total Sales</span>
-                    <span className="summary-value">{saleGroups.length}</span>
+                    <span className="summary-label">Sales</span>
+                    <span className="summary-value">{filteredGroups.length}</span>
                 </div>
                 <div className="summary-stat">
-                    <span className="summary-label">Total Revenue</span>
+                    <span className="summary-label">Revenue</span>
                     <span className="summary-value">{formatCurrency(totalRevenue)}</span>
+                </div>
+                <div className="summary-stat">
+                    <span className="summary-label">Cost</span>
+                    <span className="summary-value">{formatCurrency(totalCostSum)}</span>
+                </div>
+                <div className="summary-stat">
+                    <span className="summary-label">Profit</span>
+                    <span className="summary-value profit-value">{formatCurrency(totalProfit)}</span>
                 </div>
             </div>
 
@@ -95,14 +208,14 @@ export default function SalesView({ isDesktop }) {
                         </tr>
                     </thead>
                     <tbody>
-                        {saleGroups.length === 0 ? (
+                        {filteredGroups.length === 0 ? (
                             <tr>
                                 <td colSpan="7" style={{ textAlign: 'center', padding: '2rem' }}>
-                                    No transactions recorded yet.
+                                    {saleGroups.length === 0 ? 'No transactions recorded yet.' : 'No sales in this date range.'}
                                 </td>
                             </tr>
                         ) : (
-                            saleGroups.map(group => {
+                            filteredGroups.map(group => {
                                 const isExpanded = expandedIds.has(group.groupId);
                                 return (
                                     <Fragment key={group.groupId}>
@@ -167,6 +280,59 @@ export default function SalesView({ isDesktop }) {
             </div>
 
             <style>{`
+                .sales-filter-bar {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    flex-wrap: wrap;
+                    gap: 1rem;
+                    margin-bottom: 1.25rem;
+                    background: var(--bg-card);
+                    border-radius: 8px;
+                    box-shadow: var(--shadow-sm);
+                    padding: 12px 16px;
+                }
+                .sales-filter-presets {
+                    display: flex;
+                    gap: 6px;
+                    flex-wrap: wrap;
+                }
+                .preset-btn {
+                    padding: 6px 12px;
+                    border-radius: 6px;
+                    border: 1px solid var(--border-color);
+                    background: var(--bg-elevated);
+                    color: var(--text-secondary);
+                    font-size: 0.85rem;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.15s ease;
+                }
+                .preset-btn:hover {
+                    color: var(--text-primary);
+                }
+                .preset-btn.active {
+                    background: var(--accent-primary);
+                    color: white;
+                    border-color: var(--accent-primary);
+                }
+                .sales-filter-range {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    flex-wrap: wrap;
+                }
+                .sales-filter-range label {
+                    font-size: 0.85rem;
+                    color: var(--text-secondary);
+                    font-weight: 600;
+                }
+                .sales-filter-range input[type="date"] {
+                    padding: 6px 8px;
+                }
+                .profit-value {
+                    color: var(--accent-success);
+                }
                 .sales-summary-strip {
                     display: flex;
                     gap: 1rem;

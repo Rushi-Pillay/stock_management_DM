@@ -1,9 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { useInventory } from '../contexts/InventoryContext';
 import { useToast } from '../contexts/ToastContext';
 import { formatCurrency } from '../utils/format';
-import { Plus, Minus, Trash2, PackagePlus, PackageCheck } from 'lucide-react';
+import { Plus, Minus, Trash2, PackagePlus, PackageCheck, Camera, StopCircle } from 'lucide-react';
 import ItemCard from './ItemCard';
+
+// Minimum time between accepted scans of the same code, so holding an item
+// in front of the camera doesn't add it to the batch a dozen times over.
+const SCAN_COOLDOWN_MS = 1500;
 
 // Persist the in-progress intake batch across view switches (and page
 // reloads) so leaving the screen mid-delivery doesn't lose the count.
@@ -28,7 +33,10 @@ export default function StockIntakeView({ isDesktop }) {
     const [searchResults, setSearchResults] = useState([]);
     const [cart, setCart] = useState(() => loadPersistedCart());
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isScanning, setIsScanning] = useState(false);
     const inputRef = useRef(null);
+    const scannerRef = useRef(null);
+    const lastScanRef = useRef({ code: null, time: 0 });
 
     useEffect(() => {
         localStorage.setItem(INTAKE_STORAGE_KEY, JSON.stringify(cart));
@@ -73,8 +81,8 @@ export default function StockIntakeView({ isDesktop }) {
         refocusInput();
     };
 
-    const handleLookup = () => {
-        const trimmed = code.trim();
+    const handleLookup = (overrideCode) => {
+        const trimmed = (overrideCode ?? code).trim();
         if (!trimmed) return;
 
         const exactMatch = items.find(item => item.barcode === trimmed);
@@ -101,6 +109,91 @@ export default function StockIntakeView({ isDesktop }) {
             refocusInput();
         }
     };
+
+    // Camera QR/barcode scanning for mobile devices. Unlike the Scan tab,
+    // this keeps the camera running after each hit (a cooldown blocks
+    // re-adding the same code immediately) so a whole delivery box can be
+    // scanned item-by-item without restarting the camera each time.
+    const handleScanSuccess = (decodedText) => {
+        const now = Date.now();
+        if (lastScanRef.current.code === decodedText && (now - lastScanRef.current.time) < SCAN_COOLDOWN_MS) {
+            return;
+        }
+        lastScanRef.current = { code: decodedText, time: now };
+        handleLookup(decodedText);
+    };
+
+    const startScanner = async () => {
+        try {
+            if (!window.isSecureContext) {
+                showToast('Camera requires a secure context (HTTPS or localhost)', 'error');
+                return;
+            }
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                showToast('Camera API not present. Are you on HTTPS?', 'error');
+                return;
+            }
+            if (!document.getElementById('intake-scanner-viewport')) {
+                showToast('Scanner display element missing', 'error');
+                return;
+            }
+
+            const scanner = new Html5Qrcode('intake-scanner-viewport');
+            scannerRef.current = scanner;
+
+            try {
+                await navigator.mediaDevices.getUserMedia({ video: true });
+            } catch (permErr) {
+                showToast(`Permission denied: ${permErr.message}`, 'error');
+                return;
+            }
+
+            const config = {
+                fps: 15,
+                qrbox: { width: 250, height: 250 },
+                aspectRatio: 1.0,
+                formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE]
+            };
+
+            await scanner.start(
+                { facingMode: 'environment' },
+                config,
+                handleScanSuccess,
+                () => {
+                    // minor per-frame scan misses, ignore
+                }
+            );
+
+            setIsScanning(true);
+            showToast('Scanner active - scan items one after another', 'success');
+        } catch (err) {
+            console.error('Scanner error:', err);
+            showToast(`Start failed: ${err.message || err}`, 'error');
+        }
+    };
+
+    const stopScanner = async () => {
+        if (scannerRef.current) {
+            try {
+                if (scannerRef.current.isScanning) {
+                    await scannerRef.current.stop();
+                }
+                scannerRef.current.clear();
+            } catch (err) {
+                console.error('Stop scanner error:', err);
+            }
+        }
+        setIsScanning(false);
+    };
+
+    // Stop the camera if the user navigates away mid-scan.
+    useEffect(() => {
+        return () => {
+            if (scannerRef.current && scannerRef.current.isScanning) {
+                scannerRef.current.stop().catch(console.error);
+            }
+        };
+    }, []);
 
     const adjustQuantity = (id, delta) => {
         setCart(cart.map(line => {
@@ -168,6 +261,21 @@ export default function StockIntakeView({ isDesktop }) {
                 <p className="intake-subtitle">Scan or search, say how many arrived, and add it all to stock in one go.</p>
             </div>
 
+            <div className="intake-camera-section">
+                <div
+                    id="intake-scanner-viewport"
+                    className="intake-scanner-viewport"
+                    style={{ display: isScanning ? 'block' : 'none' }}
+                ></div>
+                <button
+                    className={`btn ${isScanning ? 'btn-danger' : 'btn-secondary'} intake-camera-btn`}
+                    onClick={isScanning ? stopScanner : startScanner}
+                >
+                    {isScanning ? <StopCircle size={18} /> : <Camera size={18} />}
+                    {isScanning ? 'Stop Camera' : 'Scan with Camera'}
+                </button>
+            </div>
+
             <div className="intake-scan-row">
                 <input
                     ref={inputRef}
@@ -183,7 +291,7 @@ export default function StockIntakeView({ isDesktop }) {
                         }
                     }}
                 />
-                <button className="btn btn-primary" onClick={handleLookup}>
+                <button className="btn btn-primary" onClick={() => handleLookup()}>
                     <Plus size={18} />
                     Add to Batch
                 </button>
@@ -322,6 +430,22 @@ export default function StockIntakeView({ isDesktop }) {
                     color: var(--text-secondary);
                     font-size: 0.95rem;
                 }
+                .intake-camera-section {
+                    margin-bottom: 1rem;
+                    text-align: center;
+                }
+                .intake-scanner-viewport {
+                    width: 100%;
+                    max-width: 400px;
+                    margin: 0 auto 1rem;
+                    border-radius: 12px;
+                    overflow: hidden;
+                }
+                .intake-camera-btn {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 8px;
+                }
                 .intake-scan-row {
                     display: flex;
                     gap: 8px;
@@ -416,8 +540,8 @@ export default function StockIntakeView({ isDesktop }) {
                 }
                 .intake-card-body {
                     display: flex;
-                    flex-wrap: wrap;
-                    gap: 1rem;
+                    flex-direction: column;
+                    gap: 0.85rem;
                     margin-bottom: 0.75rem;
                 }
                 .intake-stepper-field label,
