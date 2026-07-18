@@ -195,17 +195,21 @@ export default function StockIntakeView({ isDesktop }) {
         };
     }, []);
 
+    const MIN_QUANTITY = 0.01;
+
     const adjustQuantity = (id, delta) => {
         setCart(cart.map(line => {
             if (line.id !== id) return line;
-            const next = line.quantity + delta;
-            return { ...line, quantity: next < 1 ? 1 : next };
+            // Round to 2dp so repeated +/- clicks on a decimal value (e.g.
+            // 2.5 litres) don't drift from floating point rounding errors.
+            const next = Math.round((line.quantity + delta) * 100) / 100;
+            return { ...line, quantity: next < MIN_QUANTITY ? MIN_QUANTITY : next };
         }));
     };
 
     const setQuantity = (id, rawValue) => {
-        let qty = parseInt(rawValue, 10);
-        if (isNaN(qty) || qty < 1) qty = 1;
+        let qty = parseFloat(rawValue);
+        if (isNaN(qty) || qty < MIN_QUANTITY) qty = MIN_QUANTITY;
         setCart(cart.map(line => line.id === id ? { ...line, quantity: qty } : line));
     };
 
@@ -364,7 +368,8 @@ export default function StockIntakeView({ isDesktop }) {
                                             </button>
                                             <input
                                                 type="number"
-                                                min="1"
+                                                min="0.01"
+                                                step="0.01"
                                                 value={line.quantity}
                                                 onChange={(e) => setQuantity(line.id, e.target.value)}
                                                 className="intake-stepper-input"
