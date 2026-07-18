@@ -7,21 +7,19 @@ import { useToast } from '../contexts/ToastContext';
 
 // Label size definitions (must match printer-server label keys)
 const LABEL_OPTIONS = [
-    { id: '62_continuous', name: '62mm Continuous (DK-22205)', widthPx: 240, heightPx: 0 },
+    { id: '12_round', name: '12×12mm Round (DK-11219)', widthPx: 46, heightPx: 46 },
+    { id: '17x54', name: '17×54mm Multi-purpose (DK-11204)', widthPx: 66, heightPx: 209 },
+    { id: '17x87', name: '17×87mm File Folder (DK-11203)', widthPx: 66, heightPx: 337 },
+    { id: '29x62', name: '29×62mm Small Address (DK-11209)', widthPx: 112, heightPx: 240 },
+    { id: '29x90', name: '29×90mm Standard Address (DK-11201)', widthPx: 112, heightPx: 348 },
+    { id: '38x90', name: '38×90mm Large Address (DK-11208)', widthPx: 147, heightPx: 348 },
     { id: '62x100', name: '62×100mm Shipping (DK-11202)', widthPx: 240, heightPx: 388 },
-    { id: '62x29', name: '62×29mm Address (DK-11209)', widthPx: 240, heightPx: 112 },
-    { id: '29x90', name: '29×90mm Standard (DK-11201)', widthPx: 112, heightPx: 348 },
-    { id: '29x62', name: '29×62mm Small (DK-11209)', widthPx: 112, heightPx: 240 },
-    { id: '29_continuous', name: '29mm Continuous (DK-22210)', widthPx: 112, heightPx: 0 },
-    { id: '17x54', name: '17×54mm Multi (DK-11204)', widthPx: 66, heightPx: 210 },
-    { id: '17x87', name: '17×87mm File (DK-11203)', widthPx: 66, heightPx: 338 },
-    { id: '12_continuous', name: '12mm Continuous (DK-22214)', widthPx: 46, heightPx: 0 },
 ];
 
 export default function ItemDetailModal({ item, isOpen, onClose, onEdit, onSell }) {
     const { showToast } = useToast();
     const [printerIp, setPrinterIp] = useState('');
-    const [labelSize, setLabelSize] = useState('62_continuous');
+    const [labelSize, setLabelSize] = useState('29x90');
     const [showPrinterConfig, setShowPrinterConfig] = useState(false);
     const [isPrinting, setIsPrinting] = useState(false);
     const printRef = useRef(null);
@@ -30,7 +28,8 @@ export default function ItemDetailModal({ item, isOpen, onClose, onEdit, onSell 
         const savedIp = localStorage.getItem('printer_ip');
         if (savedIp) setPrinterIp(savedIp);
         const savedLabel = localStorage.getItem('label_size');
-        if (savedLabel) setLabelSize(savedLabel);
+        // Ignore stale keys from older label lists that no longer exist
+        if (savedLabel && LABEL_OPTIONS.some(l => l.id === savedLabel)) setLabelSize(savedLabel);
     }, []);
 
     const savePrinterIp = (ip) => {

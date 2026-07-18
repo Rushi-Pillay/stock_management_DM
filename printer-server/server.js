@@ -17,18 +17,14 @@ app.use(bodyParser.json({ limit: '50mb' }));
 // media type byte, width mm, length mm (0 = continuous)
 // ─────────────────────────────────────────────────────────────
 const LABEL_SIZES = {
-    // Continuous rolls
-    '62_continuous': { widthDots: 720, heightDots: 0, mediaType: 0x0A, widthMm: 62, lengthMm: 0, name: '62mm Continuous (DK-22205)' },
-    '29_continuous': { widthDots: 306, heightDots: 0, mediaType: 0x0A, widthMm: 29, lengthMm: 0, name: '29mm Continuous (DK-22210)' },
-    '12_continuous': { widthDots: 142, heightDots: 0, mediaType: 0x0A, widthMm: 12, lengthMm: 0, name: '12mm Continuous (DK-22214)' },
-
-    // Die-cut labels
+    // Die-cut labels (300dpi ≈ 11.64 dots/mm)
+    '12_round': { widthDots: 140, heightDots: 140, mediaType: 0x0B, widthMm: 12, lengthMm: 12, name: '12×12mm Round (DK-11219)' },
+    '17x54': { widthDots: 200, heightDots: 636, mediaType: 0x0B, widthMm: 17, lengthMm: 54, name: '17×54mm Multi-purpose (DK-11204)' },
+    '17x87': { widthDots: 200, heightDots: 1012, mediaType: 0x0B, widthMm: 17, lengthMm: 87, name: '17×87mm File Folder (DK-11203)' },
+    '29x62': { widthDots: 306, heightDots: 720, mediaType: 0x0B, widthMm: 29, lengthMm: 62, name: '29×62mm Small Address (DK-11209)' },
+    '29x90': { widthDots: 306, heightDots: 1050, mediaType: 0x0B, widthMm: 29, lengthMm: 90, name: '29×90mm Standard Address (DK-11201)' },
+    '38x90': { widthDots: 442, heightDots: 1050, mediaType: 0x0B, widthMm: 38, lengthMm: 90, name: '38×90mm Large Address (DK-11208)' },
     '62x100': { widthDots: 720, heightDots: 1164, mediaType: 0x0B, widthMm: 62, lengthMm: 100, name: '62×100mm Shipping (DK-11202)' },
-    '62x29': { widthDots: 720, heightDots: 341, mediaType: 0x0B, widthMm: 62, lengthMm: 29, name: '62×29mm Address (DK-11209)' },
-    '29x90': { widthDots: 306, heightDots: 1050, mediaType: 0x0B, widthMm: 29, lengthMm: 90, name: '29×90mm Standard (DK-11201)' },
-    '29x62': { widthDots: 306, heightDots: 720, mediaType: 0x0B, widthMm: 29, lengthMm: 62, name: '29×62mm Small (DK-11209)' },
-    '17x54': { widthDots: 200, heightDots: 636, mediaType: 0x0B, widthMm: 17, lengthMm: 54, name: '17×54mm Multi (DK-11204)' },
-    '17x87': { widthDots: 200, heightDots: 1012, mediaType: 0x0B, widthMm: 17, lengthMm: 87, name: '17×87mm File (DK-11203)' },
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -55,7 +51,7 @@ app.post('/print', async (req, res) => {
         return res.status(400).json({ error: 'Missing IP or image data' });
     }
 
-    const label = LABEL_SIZES[labelSize] || LABEL_SIZES['62_continuous'];
+    const label = LABEL_SIZES[labelSize] || LABEL_SIZES['29x90'];
     console.log(`Printing to ${ip} — label: ${label.name}`);
 
     try {
