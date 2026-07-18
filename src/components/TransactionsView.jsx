@@ -8,7 +8,7 @@ export default function TransactionsView() {
     const formatDate = (dateString) => {
         try {
             return new Date(dateString).toLocaleString();
-        } catch (e) {
+        } catch {
             return dateString;
         }
     };

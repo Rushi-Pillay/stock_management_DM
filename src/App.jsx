@@ -10,6 +10,8 @@ import SearchView from './components/SearchView';
 import InventoryView from './components/InventoryView';
 import TransactionsView from './components/TransactionsView';
 import UserManagementView from './components/UserManagementView';
+import POSView from './components/POSView';
+import SalesView from './components/SalesView';
 import './index.css';
 
 
@@ -35,7 +37,9 @@ function MainApp() {
       <div className={`mode-${isDesktop ? 'desktop' : 'mobile'}`}>
         {currentView === 'scan' && <ScanView isDesktop={isDesktop} />}
         {currentView === 'search' && <SearchView isDesktop={isDesktop} />}
+        {currentView === 'pos' && <POSView isDesktop={isDesktop} />}
         {currentView === 'inventory' && <InventoryView isDesktop={isDesktop} />}
+        {currentView === 'sales' && <SalesView isDesktop={isDesktop} />}
         {currentView === 'transactions' && <TransactionsView isDesktop={isDesktop} />}
         {currentView === 'users' && <UserManagementView isDesktop={isDesktop} />}
       </div>

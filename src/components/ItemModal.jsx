@@ -54,6 +54,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, initialDa
                         <label htmlFor="barcode">Barcode</label>
                         <input
                             type="text"
+                            id="barcode"
                             name="barcode"
                             value={formData.barcode || ''}
                             onChange={handleChange}
@@ -65,6 +66,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, initialDa
                         <label htmlFor="stockNumber">Stock Number *</label>
                         <input
                             type="text"
+                            id="stockNumber"
                             name="stockNumber"
                             value={formData.stockNumber}
                             onChange={handleChange}
@@ -77,6 +79,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, initialDa
                         <label htmlFor="supplier">Supplier *</label>
                         <input
                             type="text"
+                            id="supplier"
                             name="supplier"
                             value={formData.supplier}
                             onChange={handleChange}
@@ -88,6 +91,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, initialDa
                     <div className="form-group">
                         <label htmlFor="description">Description *</label>
                         <textarea
+                            id="description"
                             name="description"
                             value={formData.description}
                             onChange={handleChange}
@@ -101,6 +105,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, initialDa
                             <label htmlFor="costPrice">Cost Price *</label>
                             <input
                                 type="number"
+                                id="costPrice"
                                 name="costPrice"
                                 value={formData.costPrice}
                                 onChange={handleChange}
@@ -115,6 +120,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, initialDa
                             <label htmlFor="sellingPrice">Selling Price *</label>
                             <input
                                 type="number"
+                                id="sellingPrice"
                                 name="sellingPrice"
                                 value={formData.sellingPrice}
                                 onChange={handleChange}
@@ -130,6 +136,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, initialDa
                         <label htmlFor="quantity">Amount in Stock *</label>
                         <input
                             type="number"
+                            id="quantity"
                             name="quantity"
                             value={formData.quantity}
                             onChange={handleChange}

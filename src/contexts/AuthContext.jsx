@@ -6,7 +6,7 @@ import {
     signOut,
     onAuthStateChanged
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../utils/firebase';
 import { initializeApp } from "firebase/app";
 import { getAuth as getSecondaryAuth, createUserWithEmailAndPassword as secondaryCreateUser } from "firebase/auth";

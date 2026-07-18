@@ -1,0 +1,24 @@
+services:
+  stock-manager:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY}
+        VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN}
+        VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID}
+        VITE_FIREBASE_STORAGE_BUCKET: ${VITE_FIREBASE_STORAGE_BUCKET}
+        VITE_FIREBASE_MESSAGING_SENDER_ID: ${VITE_FIREBASE_MESSAGING_SENDER_ID}
+        VITE_FIREBASE_APP_ID: ${VITE_FIREBASE_APP_ID}
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+  printer-server:
+    build:
+      context: ./printer-server
+    # Needs host networking so it can reach the label printer's LAN IP on
+    # port 9100, and so the browser's hardcoded http://localhost:3001 call
+    # resolves to this same machine.
+    network_mode: host
+    restart: unless-stopped

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { db } from '../utils/firebase';
-import { collection, query, getDocs, doc, deleteDoc, orderBy } from 'firebase/firestore';
+import { collection, query, getDocs, orderBy } from 'firebase/firestore';
 import { UserPlus, Trash2, Shield, User, Lock, Unlock } from 'lucide-react';
 
 export default function UserManagementView() {
@@ -85,7 +85,7 @@ export default function UserManagementView() {
             await toggleUserStatus(uid, isDisabled);
             showToast(`User ${isDisabled ? 'enabled' : 'disabled'} successfully`, "success");
             loadUsers(); // Refresh list to see change
-        } catch (error) {
+        } catch {
             showToast("Failed to update user status", "error");
         }
     };

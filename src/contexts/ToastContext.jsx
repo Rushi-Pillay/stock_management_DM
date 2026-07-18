@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
@@ -6,13 +6,22 @@ const ToastContext = createContext(null);
 
 export function ToastProvider({ children }) {
   const [toast, setToast] = useState(null);
+  const dismissTimerRef = useRef(null);
 
   const showToast = useCallback((message, type = 'info', duration = 3000) => {
     setToast({ message, type });
-    
+
+    // Clear any pending dismiss from a previous toast so it can't cut off
+    // this newer one early (rapid-fire calls otherwise race each other).
+    if (dismissTimerRef.current) {
+      clearTimeout(dismissTimerRef.current);
+      dismissTimerRef.current = null;
+    }
+
     if (duration) {
-      setTimeout(() => {
+      dismissTimerRef.current = setTimeout(() => {
         setToast(null);
+        dismissTimerRef.current = null;
       }, duration);
     }
   }, []);
