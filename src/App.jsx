@@ -6,7 +6,6 @@ import { ModalProvider } from './contexts/ModalContext';
 import Layout from './components/Layout';
 import Login from './components/Login';
 import ScanView from './components/ScanView';
-import SearchView from './components/SearchView';
 import InventoryView from './components/InventoryView';
 import TransactionsView from './components/TransactionsView';
 import UserManagementView from './components/UserManagementView';
@@ -37,7 +36,6 @@ function MainApp() {
     >
       <div className={`mode-${isDesktop ? 'desktop' : 'mobile'}`}>
         {currentView === 'scan' && <ScanView isDesktop={isDesktop} />}
-        {currentView === 'search' && <SearchView isDesktop={isDesktop} />}
         {currentView === 'pos' && <POSView isDesktop={isDesktop} />}
         {currentView === 'intake' && <StockIntakeView isDesktop={isDesktop} />}
         {currentView === 'inventory' && <InventoryView isDesktop={isDesktop} />}
