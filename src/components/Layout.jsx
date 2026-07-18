@@ -1,4 +1,4 @@
-import { Package, Camera, Search, ClipboardList, Users, LogOut, Smartphone, Monitor, Sun, Moon, ShoppingCart, TrendingUp } from 'lucide-react';
+import { Package, Camera, Search, ClipboardList, Users, LogOut, Smartphone, Monitor, Sun, Moon, ShoppingCart, TrendingUp, PackagePlus } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useState, useEffect } from 'react';
 
@@ -26,6 +26,7 @@ export default function Layout({ children, currentView, onViewChange, isDesktop,
         { id: 'scan', label: 'Scan', icon: Camera },
         { id: 'search', label: 'Search', icon: Search },
         { id: 'pos', label: 'POS', icon: ShoppingCart },
+        { id: 'intake', label: 'Stock In', icon: PackagePlus },
         { id: 'inventory', label: 'Inventory', icon: ClipboardList },
         { id: 'sales', label: 'Sales', icon: TrendingUp },
         { id: 'transactions', label: 'History', icon: Package },

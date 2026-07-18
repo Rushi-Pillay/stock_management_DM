@@ -12,6 +12,7 @@ import TransactionsView from './components/TransactionsView';
 import UserManagementView from './components/UserManagementView';
 import POSView from './components/POSView';
 import SalesView from './components/SalesView';
+import StockIntakeView from './components/StockIntakeView';
 import './index.css';
 
 
@@ -38,6 +39,7 @@ function MainApp() {
         {currentView === 'scan' && <ScanView isDesktop={isDesktop} />}
         {currentView === 'search' && <SearchView isDesktop={isDesktop} />}
         {currentView === 'pos' && <POSView isDesktop={isDesktop} />}
+        {currentView === 'intake' && <StockIntakeView isDesktop={isDesktop} />}
         {currentView === 'inventory' && <InventoryView isDesktop={isDesktop} />}
         {currentView === 'sales' && <SalesView isDesktop={isDesktop} />}
         {currentView === 'transactions' && <TransactionsView isDesktop={isDesktop} />}

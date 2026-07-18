@@ -266,6 +266,64 @@ export function InventoryProvider({ children }) {
         }
     };
 
+    // Atomic multi-item stock intake for the Stock Intake screen.
+    // cartItems: Array<{ id: string, itemName: string, quantity: number, costPrice: number }>
+    // Returns Promise<boolean> - true on success, false on failure (already shows a toast either way)
+    const receiveStock = async (cartItems) => {
+        try {
+            await runTransaction(db, async (transaction) => {
+                const refs = cartItems.map(ci => doc(db, 'inventory', ci.id));
+
+                // All reads must happen before any writes in a Firestore transaction.
+                const snapshots = await Promise.all(refs.map(ref => transaction.get(ref)));
+
+                snapshots.forEach((snap, idx) => {
+                    if (!snap.exists()) {
+                        throw new Error(`Item not found: ${cartItems[idx].itemName}`);
+                    }
+                });
+
+                cartItems.forEach((ci, idx) => {
+                    const currentQty = Number(snapshots[idx].data().quantity) || 0;
+                    const itemRef = refs[idx];
+
+                    transaction.update(itemRef, {
+                        quantity: currentQty + ci.quantity,
+                        costPrice: Number(ci.costPrice),
+                        updatedAt: new Date().toISOString()
+                    });
+
+                    const txnRef = doc(collection(db, 'transactions'));
+                    transaction.set(txnRef, {
+                        type: 'IN',
+                        itemId: ci.id,
+                        itemName: ci.itemName,
+                        quantity: ci.quantity,
+                        costPrice: Number(ci.costPrice),
+                        totalCost: ci.quantity * Number(ci.costPrice),
+                        timestamp: new Date().toISOString(),
+                        reason: 'Stock Intake',
+                        performedBy: userData?.name || user?.email || 'Unknown'
+                    });
+                });
+            });
+
+            // Optimistic local update
+            setItems(prev => prev.map(item => {
+                const ci = cartItems.find(c => c.id === item.id);
+                return ci ? { ...item, quantity: Number(item.quantity) + ci.quantity, costPrice: Number(ci.costPrice) } : item;
+            }));
+            loadTransactions();
+
+            showToast('Stock received successfully', 'success');
+            return true;
+        } catch (err) {
+            console.error('Error receiving stock:', err);
+            showToast(err.message || 'Stock intake failed', 'error');
+            return false;
+        }
+    };
+
     const removeStock = async (id, quantity, salePrice) => {
         const item = items.find(i => i.id === id);
         if (!item) return false;
@@ -305,6 +363,7 @@ export function InventoryProvider({ children }) {
             deleteItem,
             removeStock,
             checkoutSale,
+            receiveStock,
             transactions,
             loadTransactions
         }}>
